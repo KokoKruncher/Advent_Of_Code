@@ -21,25 +21,24 @@ originalGrid = map.grid;
 gridSize = map.gridSize;
 nGridPositions = numel(originalGrid);
 initialPosition = map.guard.initialPosition;
-originalGrid = parallel.pool.Constant(originalGrid);
 
-% 6 workers: ~172-184s -> 155 to 157 after change
-% 12 workers: ~118-125s - > 145 to 147 after change
-nWorkers = 12;
+% 6 workers: ~138s
+% 12 workers: ~119s
+nWorkers = 6;
 parpool(nWorkers);
 
 tic
 positionCausesLoop = false(size(originalGrid));
 parfor (iPosition = 1:nGridPositions,nWorkers)
-    if originalGrid.Value(iPosition) == "#"
+    if originalGrid(iPosition) == "#"
         continue
     end
 
-    if originalGrid.Value(iPosition) == "^"
+    if originalGrid(iPosition) == "^"
         continue
     end
 
-    modifiedGrid = originalGrid.Value;
+    modifiedGrid = originalGrid; %#ok<PFBNS>
     modifiedGrid(iPosition) = "#";
     map = PatrolMap("grid",modifiedGrid);
 
