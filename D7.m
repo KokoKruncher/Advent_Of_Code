@@ -91,6 +91,14 @@ arguments
 end
 assert(numel(elements) == numel(operators) + 1,"Elements must be 1 more than operators")
 
+% operations done left to right ignoring BODMAS
+% so, put a bracker after each element as well as all the required brackets
+% before 1st element
+elements = elements + ")";
+nElements = numel(elements);
+openingBrackets = join(repmat("(",1,nElements),"");
+elements(1) = openingBrackets + elements(1);
+
 operatorsPadded = [operators ""];
 tmp = [elements', operatorsPadded'];
 tmp = tmp';
