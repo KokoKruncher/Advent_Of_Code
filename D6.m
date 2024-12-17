@@ -23,7 +23,9 @@ nGridPositions = numel(originalGrid);
 initialPosition = map.guard.initialPosition;
 
 tic
-nWorkers = 6;
+% 6 workers: ~172-184s
+% 12 workers: ~118-125s
+nWorkers = 12;
 positionCausesLoop = false(size(originalGrid));
 parfor (iPosition = 1:nGridPositions,nWorkers)
     if originalGrid(iPosition) == "#"
@@ -48,4 +50,4 @@ end
 toc
 
 nPositionsThatCauseLoop = sum(positionCausesLoop,"all");
-fprintf("Number of positions that cause loop: ", nPositionsThatCauseLoop)
+fprintf("Number of positions that cause loop: %i\n", nPositionsThatCauseLoop)
