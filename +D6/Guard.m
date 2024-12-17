@@ -36,7 +36,7 @@ classdef Guard < handle
 
         function updateInBoundsStatus(self,mapGridSize)
             arguments
-                self (1,1) D5.Guard
+                self (1,1) D6.Guard
                 mapGridSize (1,2) double
             end
             row = self.position(1);

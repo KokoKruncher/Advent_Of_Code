@@ -2,7 +2,7 @@ classdef Map < handle
     properties (SetAccess = private)
         grid
         gridSize (:,:) double
-        guard (1,1) D5.Guard
+        guard (1,1) D6.Guard
         obstacles logical
         pathWalked logical
     end
@@ -13,7 +13,7 @@ classdef Map < handle
             self.gridSize = size(self.grid);
 
             guardPosition = self.findInitialPosition();
-            self.guard = D5.Guard(guardPosition);
+            self.guard = D6.Guard(guardPosition);
 
             self.obstacles = self.grid == "#";
             self.pathWalked = false(self.gridSize);

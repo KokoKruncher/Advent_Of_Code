@@ -1,5 +1,5 @@
 clear; clc;
-import D5.*
+import D6.*
 %% Part 1
 filename = "D6 Data.txt";
 data = readlines(filename);
