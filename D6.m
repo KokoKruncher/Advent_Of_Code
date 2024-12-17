@@ -21,22 +21,25 @@ originalGrid = map.grid;
 gridSize = map.gridSize;
 nGridPositions = numel(originalGrid);
 initialPosition = map.guard.initialPosition;
+originalGrid = parallel.pool.Constant(originalGrid);
+
+% 6 workers: ~172-184s -> 155 to 157 after change
+% 12 workers: ~118-125s - > 145 to 147 after change
+nWorkers = 12;
+parpool(nWorkers);
 
 tic
-% 6 workers: ~172-184s
-% 12 workers: ~118-125s
-nWorkers = 12;
 positionCausesLoop = false(size(originalGrid));
 parfor (iPosition = 1:nGridPositions,nWorkers)
-    if originalGrid(iPosition) == "#"
+    if originalGrid.Value(iPosition) == "#"
         continue
     end
 
-    if originalGrid(iPosition) == "^"
+    if originalGrid.Value(iPosition) == "^"
         continue
     end
 
-    modifiedGrid = originalGrid;
+    modifiedGrid = originalGrid.Value;
     modifiedGrid(iPosition) = "#";
     map = PatrolMap("grid",modifiedGrid);
 
@@ -48,6 +51,7 @@ parfor (iPosition = 1:nGridPositions,nWorkers)
     end
 end
 toc
+delete(gcp('nocreate'))
 
 nPositionsThatCauseLoop = sum(positionCausesLoop,"all");
 fprintf("Number of positions that cause loop: %i\n", nPositionsThatCauseLoop)
