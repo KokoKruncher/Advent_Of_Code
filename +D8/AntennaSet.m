@@ -61,6 +61,52 @@ classdef AntennaSet < handle
             end
         end
 
+        function locateAntinodesModified(self)
+            self.antinodeLocations = false(self.mapSize);
+            if self.nPositions == 1
+                return
+            end
+
+            % loop through all pairs of 2 antennas and find antinodes
+            antennaCombinations = nchoosek(1:self.nPositions,2);
+            nAntennaCombinations = height(antennaCombinations);
+            for i = 1:nAntennaCombinations
+                thisCombination = antennaCombinations(i,:);
+                antennaPosition1 = self.positions(thisCombination(1));
+                antennaPosition2 = self.positions(thisCombination(2));
+                displacement1to2 = antennaPosition2 - antennaPosition1;
+
+                % set Antenna positions to be antinode
+                antennaPosition1 = num2cell(antennaPosition1);
+                antennaPosition2 = num2cell(antennaPosition2);
+                self.antinodeLocations(antennaPosition1{:}) = true;
+                self.antinodeLocations(antennaPosition2{:}) = true;
+                
+                % keep going until out of map
+                displacementMultiplier = 1;
+                for antennaPosition = {[antennaPosition1{:}],[antennaPosition2{:}]}
+                    % divide by absolute value to retain sign
+                    displacementMultiplier = displacementMultiplier/ ...
+                                             abs(displacementMultiplier);
+                    while true
+                        antinodePosition = antennaPosition{:} - ...
+                            (displacement1to2*displacementMultiplier);
+                        if ~self.checkLocationIsInMap(antinodePosition)
+                            break
+                        end
+                        antinodePosition = num2cell(antinodePosition);
+                        self.antinodeLocations(antinodePosition{:}) = true;
+                        
+                        % increment magniture of multiplier by 1, keep sign
+                        displacementMultiplier = displacementMultiplier + ...
+                            (1*sign(displacementMultiplier));
+                    end
+                    % change sign to flip direction from next antenna
+                    displacementMultiplier = -displacementMultiplier;
+                end
+            end
+        end
+
         function isInMap = checkLocationIsInMap(self,location)
             assert(all(size(location) == [1,2]))
             row = location(1); col = location(2);
@@ -69,6 +115,10 @@ classdef AntennaSet < handle
             else
                 isInMap = true;
             end
+        end
+
+        function clearAntinodeLocations(self)
+            self.antinodeLocations(:,:) = false;
         end
     end
 end

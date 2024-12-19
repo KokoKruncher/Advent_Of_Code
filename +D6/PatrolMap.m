@@ -168,7 +168,7 @@ classdef PatrolMap < handle
             if ~isfolder("Outputs")
                 mkdir("Outputs")
             end
-            writematrix(gridWithPathWalked,"Outputs/D5_Part1.txt")
+            writematrix(gridWithPathWalked,"Outputs/D6_Part1.txt")
         end
     end
 
