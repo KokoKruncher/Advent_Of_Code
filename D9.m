@@ -73,13 +73,13 @@ end
 
 
 
-function checksum = calculateChecksum(compactedBlocks)
-assert(numel(compactedBlocks) > 1 && isvector(compactedBlocks));
+function checksum = calculateChecksum(blocks)
+assert(numel(blocks) > 1 && isvector(blocks));
 
-fileIds = compactedBlocks(compactedBlocks ~= ".");
-fileIds = str2double(fileIds);
-nFileIds = numel(fileIds);
-filePositions = 0:(nFileIds - 1);
-multiplicationResult = filePositions.*fileIds;
+blocks(blocks == ".") = "0"; % skip free space blocks
+blocks = str2double(blocks);
+nBlocks = numel(blocks);
+blockPositions = 0:(nBlocks - 1);
+multiplicationResult = blockPositions.*blocks;
 checksum = sum(multiplicationResult,"all");
 end
