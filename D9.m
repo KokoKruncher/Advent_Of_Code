@@ -5,15 +5,16 @@ filename = "D9 Data.txt";
 diskMap = readlines(filename);
 
 blocks = decodeDiskMap(diskMap);
-compactedBlocks = compactBlocks(blocks);
+compactedBlocks = compactDiskIndividualFiles(blocks);
 checksum = calculateChecksum(compactedBlocks);
-fprintf("Checksum: %i \n",checksum)
+fprintf("Checksum: %i \n\n",checksum)
 
 
 
 function blocks = decodeDiskMap(diskMap)
 % don't join the blocks into single string as fileIDs could have multiple digits!
 
+fprintf("[%s] - Decoding disk map.\n",datetime)
 diskMap = splitStringIntoArray(diskMap);
 diskMap = str2double(diskMap);
 
@@ -50,11 +51,11 @@ end
 
 
 
-function blocks = compactBlocks(blocks)
+function blocks = compactDiskIndividualFiles(blocks)
 locLastFileBlock = find(blocks ~= ".",1,"last");
 locFirstFreeSpaceBlock = find(blocks == ".",1,"first");
 
-fprintf("[%s] - Compacting blocks.\n",datetime)
+fprintf("[%s] - Compacting disk (individual files).\n",datetime)
 nIterations = 0;
 while locLastFileBlock > locFirstFreeSpaceBlock
     nIterations = nIterations + 1;
@@ -67,7 +68,7 @@ while locLastFileBlock > locFirstFreeSpaceBlock
     locLastFileBlock = find(blocks ~= ".",1,"last");
     locFirstFreeSpaceBlock = find(blocks == ".",1,"first");
 end
-fprintf("[%s] - Compacting blocks done. Iterations: %i\n",datetime,nIterations)
+fprintf("[%s] - Compacting disk done. Iterations: %i\n",datetime,nIterations)
 end
 
 
