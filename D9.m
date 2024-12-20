@@ -149,6 +149,8 @@ multiplicationResult = blockPositions.*blocks;
 checksum = sum(multiplicationResult,"all");
 end
 
+
+
 function checksum = calculateChecksumFromPositions(fileStartingPositions, ...
     fileBlockSizes,nFiles, fileIds)
 
