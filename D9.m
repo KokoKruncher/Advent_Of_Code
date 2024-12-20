@@ -10,9 +10,69 @@ checksumIndividualMethod = calculateChecksum(compactedBlocksIndividual);
 fprintf("Checksum (individual method): %i \n\n",checksumIndividualMethod)
 
 %% Part 2
-compactedBlocksWhole = compactDiskWholeFile(blocks);
-checksumWholeMethod = calculateChecksum(compactedBlocksWhole);
-fprintf("Checksum (whole method): %i \n\n",checksumWholeMethod)
+tic
+[fileIds,fileStartingPositions,fileBlockSizes,nFiles] = parseDiskMap(diskMap);
+fileStartingPositions = compactDiskWholeFileBlocks(nFiles,fileStartingPositions,fileBlockSizes);
+checksumWholeMethod = calculateChecksumFromPositions(fileStartingPositions, ...
+    fileBlockSizes, nFiles, fileIds);
+toc
+fprintf("Checksum (whole method): %i\n",checksumWholeMethod);
+
+
+function fileStartingPositions = compactDiskWholeFileBlocks(nFiles, ...
+    fileStartingPositions,fileBlockSizes)
+% use their positions (fast) instead of manipulating the actual blocks (slow)
+
+% reverse order from largest file ID to to smallest
+for iFile = nFiles:-1:1
+    thisFileStartingPosition = fileStartingPositions(iFile);
+    thisFileBlockSize = fileBlockSizes(iFile);
+    
+    [gapSizes,gapStartingPositions] = calculateGaps(fileStartingPositions,fileBlockSizes);
+    
+    % only look at gaps before this file
+    indxGapsBeforeThisFile = gapStartingPositions < thisFileStartingPosition;
+    gapSizes = gapSizes(indxGapsBeforeThisFile);
+    gapStartingPositions = gapStartingPositions(indxGapsBeforeThisFile);
+    indxGapsBigEnough = gapSizes >= thisFileBlockSize;
+    if ~any(indxGapsBigEnough)
+        continue
+    end
+    validGapStartingPositions = gapStartingPositions(indxGapsBigEnough);
+    
+    % choose left-most position
+    fileStartingPositions(iFile) = validGapStartingPositions(1);
+end
+end
+
+
+
+function [gapSizes,gapStartingPositions] = calculateGaps(fileStartingPositions,fileBlockSizes)
+[fileStartingPositions,sortOrder] = sort(fileStartingPositions);
+fileBlockSizes = fileBlockSizes(sortOrder);
+
+fileStoppingPositions = fileStartingPositions + fileBlockSizes - 1;
+gapStartingPositions = fileStoppingPositions(1:end-1) + 1;
+gapSizes = fileStartingPositions(2:end) - fileStoppingPositions(1:end-1) - 1;
+
+indxZeroGaps = gapSizes == 0;
+gapSizes(indxZeroGaps) = [];
+gapStartingPositions(indxZeroGaps) = [];
+end
+
+
+function [fileIds,fileStartingPositions,fileBlockSizes,nFiles] = parseDiskMap(diskMap)
+diskMapNums = str2double(splitStringIntoArray(diskMap));
+startingPositions = cumsum(diskMapNums);
+startingPositions(end) = [];
+startingPositions = [0 startingPositions];
+nGroups = numel(startingPositions);
+
+fileStartingPositions = startingPositions(1:2:nGroups);
+nFiles = numel(fileStartingPositions);
+fileIds = 0:(nFiles - 1);
+fileBlockSizes = diskMapNums(1:2:nGroups);
+end
 
 
 
@@ -78,68 +138,6 @@ end
 
 
 
-function blocks = compactDiskWholeFile(blocks)
-fprintf("[%s] - Compacting disk (whole file blocks).\n",datetime)
-fileBlocks = blocks(blocks ~= ".");
-fileIdArray = unique(str2double(fileBlocks)); % returns sorted array (ascending)
-fileIdArray = fileIdArray(end:-1:1); % sort in descending order
-fileIdArray = string(fileIdArray);
-
-% create struct to store more info together
-nBlocks = numel(blocks);
-blocksCell = num2cell(blocks);
-BlockData = struct;
-[BlockData(1:nBlocks).block] = blocksCell{:};
-[BlockData([BlockData.block] == ".").type] = deal("Free Space");
-[BlockData([BlockData.block] ~= ".").type] = deal("File");
-
-
-% delete this line
-% fileIdArray = fileIdArray(1:10);
-for thisFileId = fileIdArray(:)'
-    % disp(thisFileId) % delete this line
-    indxThisFileId = [BlockData.block] == thisFileId;
-    nBlocksThisFileId = sum(indxThisFileId,"all");
-    firstLocThisFileId = find(indxThisFileId,1,"first");
-
-    indxFreeSpace = [BlockData.type] == "Free Space";
-    [startLocsFreeSpace,~,nFreeSpaces] = groupLogicalIndices(indxFreeSpace);
-    
-    indxValidFreeSpaceGroups = startLocsFreeSpace < firstLocThisFileId & ...
-                               nFreeSpaces >= nBlocksThisFileId;
-
-    if ~any(indxValidFreeSpaceGroups)
-        continue
-    end
-
-    startLocsValidFreeSpace = startLocsFreeSpace(indxValidFreeSpaceGroups);
-    
-    startLocChosenFreeSpace = startLocsValidFreeSpace(1); % choose leftmost one
-    stopLocChosenFreeSpace = startLocChosenFreeSpace + nBlocksThisFileId - 1;
-
-    % swap
-    fileBlocksToSwap = BlockData(indxThisFileId);
-    freeSpaceBlocksToSwap = BlockData(startLocChosenFreeSpace:stopLocChosenFreeSpace);
-    BlockData(startLocChosenFreeSpace:stopLocChosenFreeSpace) = fileBlocksToSwap;
-    BlockData(indxThisFileId) = freeSpaceBlocksToSwap;
-end
-blocks = [BlockData.block];
-fprintf("[%s] - Compacting disk done. Iterations: %i\n",datetime,numel(fileIdArray))
-end
-
-
-
-function [startLocs,stopLocs,nElements] = groupLogicalIndices(indx)
-arguments
-    indx (1,:) logical
-end
-startLocs = find(diff([false indx]) == 1);
-stopLocs = find(diff([indx false]) == -1);
-nElements = stopLocs - startLocs + 1;
-end
-
-
-
 function checksum = calculateChecksum(blocks)
 assert(numel(blocks) > 1 && isvector(blocks));
 
@@ -149,4 +147,23 @@ nBlocks = numel(blocks);
 blockPositions = 0:(nBlocks - 1);
 multiplicationResult = blockPositions.*blocks;
 checksum = sum(multiplicationResult,"all");
+end
+
+function checksum = calculateChecksumFromPositions(fileStartingPositions, ...
+    fileBlockSizes,nFiles, fileIds)
+
+[maxFileStartingPosition,locMaxFileStartingPosition] = max(fileStartingPositions);
+
+% -1 for fence posting but + 1 because positions start at 0
+nBlocks = maxFileStartingPosition + fileBlockSizes(locMaxFileStartingPosition) - 1 + 1;
+fileStoppingPositions = fileStartingPositions + fileBlockSizes - 1;
+blocks = zeros(1,nBlocks);
+positions = 0:nBlocks-1;
+for iFile = 1:nFiles
+    % add 1 for MATLAB indicing because positions start at 0
+    thisFileStartingPosition = fileStartingPositions(iFile) + 1;
+    thisFileStoppingPosition = fileStoppingPositions(iFile) + 1;
+    blocks(thisFileStartingPosition:thisFileStoppingPosition) = fileIds(iFile);
+end
+checksum = sum(positions.*blocks,"all");
 end
