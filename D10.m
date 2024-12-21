@@ -11,6 +11,7 @@ nTrailHeads = numel(trailHeadLinearIndx);
 mapSize = size(topographicMap);
 
 trailHeadScores = nan(nTrailHeads,1);
+trailHeadRatings = nan(nTrailHeads,1);
 for iTrailHead = 1:nTrailHeads
     peaksReachable = false(mapSize); % reset for each trailhead
     [rowTrailHead,colTrailHead] = ind2sub(mapSize,trailHeadLinearIndx(iTrailHead));
@@ -21,10 +22,13 @@ for iTrailHead = 1:nTrailHeads
     
     nPeaksReachable = sum(peaksReachable,"all");
     trailHeadScores(iTrailHead) = nPeaksReachable;
+    trailHeadRatings(iTrailHead) = nPathsToPeaks;
 end
 
 sumTrailHeadScores = sum(trailHeadScores,"all");
-fprintf("Score = %i\n",sumTrailHeadScores)
+sumTrailHeadRatings = sum(trailHeadRatings,"all");
+fprintf("Sum of scores = %i\n",sumTrailHeadScores)
+fprintf("Sum of ratings = %i\n",sumTrailHeadRatings)
 toc
 
 
@@ -66,16 +70,17 @@ directionToPrevLocation = -direction;
 nBranches = -1; % so that if path just continues in 1 direction, pathNum doesn't increment
 for iDirection = 1:nDirectionsToCheck
     thisDirection = rotateDirection(directionToPrevLocation,iDirection);
-    isDirectionValid = checkDirection(location,topographicMap,mapSize, ...
-        locationsTravelled,thisDirection);
+    isDirectionValid = checkDirection(location,topographicMap,mapSize,thisDirection);
 
     if ~isDirectionValid
         continue
     end
     
-    % increment pathNum only if a new brannch is formed
+    % increment pathNum only if a new branch is formed
     nBranches = nBranches + 1;
-    pathNum = pathNum + nBranches;
+    if nBranches >= 1
+        pathNum = pathNum + 1;
+    end
     
     % recurse
     newLocation = location + thisDirection;
@@ -87,8 +92,7 @@ end
 
 
 
-function isDirectionValid = checkDirection(location,topographicMap,mapSize, ...
-        locationsTravelled,thisDirection)
+function isDirectionValid = checkDirection(location,topographicMap,mapSize,thisDirection)
 newLocation = location + thisDirection;
 isDirectionValid = false;
 
@@ -97,25 +101,12 @@ if ~isNewLocationInBounds
     return
 end
 
-isLocationUntravelled = checkIfLocationIsUntravelled(newLocation,locationsTravelled);
-if ~isLocationUntravelled
-    return
-end
-
-
 isSlopeGradualUphill = checkIfSlopeIsGradualUphill(location,newLocation,topographicMap);
 if ~isSlopeGradualUphill
     return
 end
 
 isDirectionValid = true;
-end
-
-
-
-function isLocationUntravelled = checkIfLocationIsUntravelled(location,locationsTravelled)
-isLocationTravelled = ismember(location,locationsTravelled,'rows');
-isLocationUntravelled = ~isLocationTravelled;
 end
 
 
