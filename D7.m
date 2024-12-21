@@ -3,18 +3,19 @@ clear; clc;
 %% Part 1
 filename = "D7 Data.txt";
 data = readlines(filename);
-
+tic
 % setup parallel pool for brute forcing this shit
 nWorkers = 12;
-parpool(nWorkers);
+if isempty(gcp('nocreate'))
+    parpool(nWorkers);
+end
 
 [testValueArray,testNumbersArray] = formatData(data);
 
-tic
 allowedOperators = ["*" "+"];
 bSuccess = false(size(testValueArray));
 nTestValues = numel(testValueArray);
-parfor iTestValue = 1:nTestValues
+parfor (iTestValue = 1:nTestValues,nWorkers)
     testValue = testValueArray(iTestValue);
     testNumbers = testNumbersArray{iTestValue};
     nTestNumbers = numel(testNumbers);
@@ -25,7 +26,7 @@ parfor iTestValue = 1:nTestValues
     nPermutations = height(operatorPermutations);
     for iPermutation = 1:nPermutations
         operators = operatorPermutations(iPermutation,:);
-        evaluatedExpression = evaluateCustomOperators(testNumbers,operators);
+        evaluatedExpression = evaluateCustomOperators(testNumbers,operators,testValue);
         if evaluatedExpression == testValue
             bSuccess(iTestValue) = true;
             break
@@ -44,11 +45,12 @@ fprintf("Total calibration results: %i\n", totalCalibrationResult)
 newTestValueArray = testValueArray(~bSuccess);
 newTestNumbersArray = testNumbersArray(~bSuccess);
 
+% mpiprofile on
 tic
 newAllowedOperators = ["||" "*" "+"];
 new_bSuccess = false(size(newTestValueArray));
 nTestValues = numel(newTestValueArray);
-parfor iTestValue = 1:nTestValues
+parfor (iTestValue = 1:nTestValues,nWorkers)
     testValue = newTestValueArray(iTestValue);
     testNumbers = newTestNumbersArray{iTestValue};
     nTestNumbers = numel(testNumbers);
@@ -64,7 +66,7 @@ parfor iTestValue = 1:nTestValues
     nPermutations = height(operatorPermutations);
     for iPermutation = 1:nPermutations
         operators = operatorPermutations(iPermutation,:);
-        evaluatedExpression = evaluateCustomOperators(testNumbers,operators);
+        evaluatedExpression = evaluateCustomOperators(testNumbers,operators,testValue);
         if evaluatedExpression == testValue
             new_bSuccess(iTestValue) = true;
             break
@@ -72,7 +74,8 @@ parfor iTestValue = 1:nTestValues
     end
 end
 toc
-delete(gcp('nocreate'))
+% delete(gcp('nocreate'))
+% mpiprofile viewer
 
 newSuccessfulCalibrationResults = newTestValueArray(new_bSuccess);
 newTotalCalibrationResult = sum(newSuccessfulCalibrationResults,'all') + ...
@@ -119,61 +122,48 @@ for iRow = 1:nRows
     fullString = dataCell{iRow};
     fullStringSplitted = split(fullString,[": "," "]);
     testValueArray(iRow) = str2double(fullStringSplitted(1));
-    testNumbersArray{iRow} = fullStringSplitted(2:end)';
+    testNumbersArray{iRow} = str2double(fullStringSplitted(2:end)');
 end
-end
 
-
-
-function expression = createExpression(numbers,operators)
-arguments
-    numbers (1,:) {mustBeA(numbers,"string")}
-    operators (1,:) {mustBeA(operators,"string")}
-end
-assert(numel(numbers) == numel(operators) + 1,"Numbers must be 1 more than operators")
-
-% operations done left to right ignoring BODMAS
-% so, put a bracket after each number as well as all the required brackets
-% before 1st numbr
-numbers = numbers + ")";
-nNumbers = numel(numbers);
-openingBrackets = join(repmat("(",1,nNumbers),"");
-numbers(1) = openingBrackets + numbers(1);
-
-operatorsPadded = [operators ""];
-tmp = [numbers', operatorsPadded'];
-tmp = tmp';
-tmp = tmp(:);
-expression = join(tmp(1:end-1),"");
 end
 
 
 
-function evaluatedExpression = evaluateCustomOperators(testNumbers,operators)
+function evaluatedExpression = evaluateCustomOperators(testNumbers,operators,testValue)
 % evaluated the expression from left to right, including the custom
 % operator "||" which concatenates two numbers into one
 arguments
-    testNumbers (1,:) string
+    testNumbers (1,:) double
     operators (1,:) string
+    testValue (1,1) double
 end
-testNumbers = str2double(testNumbers);
+% testNumbers = str2double(testNumbers);
 
 nOperators = numel(operators);
 currentValue = testNumbers(1);
 for iOperator = 1:nOperators
     nextNumber = testNumbers(iOperator + 1);
+
+    % performance bottleneck is extracting string from string array, changing operators to
+    % be represented by numbers would be faster.
     currentOperator = operators(iOperator);
-    switch currentOperator
-        case "||"
-            % concatenate numbers 
-            nDigitsToAdd = numel(num2str(nextNumber));
-            currentValue = currentValue*(10^nDigitsToAdd) + nextNumber;
-        case "+"
-            currentValue = currentValue + nextNumber;
-        case "*"
-            currentValue = currentValue*nextNumber;
-        otherwise
-            error("Unknown operator: %s",currentOperator)
+    
+    % if-else in this case ~20x faster than switch-case
+    if currentOperator == "||"
+        % concatenate numbers
+        nDigitsToAdd = floor(log10(nextNumber))+1;
+        currentValue = currentValue*(10^nDigitsToAdd) + nextNumber;
+    elseif currentOperator == "+"
+        currentValue = currentValue + nextNumber;
+    elseif currentOperator == "*"
+        currentValue = currentValue*nextNumber;
+    else
+        error("Unknown operator: %s",currentOperator)
+    end
+    
+    % all operations increase the value of currentValue, so if overshot, already failed
+    if currentValue > testValue
+        break
     end
 end
 evaluatedExpression = currentValue;
