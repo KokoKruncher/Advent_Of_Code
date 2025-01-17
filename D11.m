@@ -1,6 +1,7 @@
 % to nBlinks = 40
 % original: long af
-% after vectorisation: 20s, 
+% after vectorisation: 20s
+% after preallocation: 5s
 
 clear; clc; close all
 
@@ -33,14 +34,18 @@ nStones = numel(stones);
 
 nDigitsAllStones = numDigits(stones);
 isEvenNumDigits = isEven(nDigitsAllStones);
+nStonesToAdd = nnz(isEvenNumDigits);
+nNewStones = nStones + nStonesToAdd;
 % disp(nStones)
 
-newStones = [];
+iNewStone = 1;
+newStones = nan(nNewStones,1);
 for iStone = 1:nStones
     thisStone = stones(iStone);
     
     if thisStone == 0
-        newStones(end+1) = 1; %#ok<*AGROW>
+        newStones(iNewStone) = 1; %#ok<*AGROW>
+        iNewStone = iNewStone + 1;
         continue
     end
     
@@ -52,12 +57,14 @@ for iStone = 1:nStones
         replacementStone1 = floor(thisStone/(10^(nDigitsThisStone/2))); 
         replacementStone2 = rem(thisStone,10^(nDigitsThisStone/2));
 
-        newStones(end+1) = replacementStone1;
-        newStones(end+1) = replacementStone2;
+        newStones(iNewStone) = replacementStone1;
+        newStones(iNewStone + 1) = replacementStone2;
+        iNewStone = iNewStone + 2;
         continue
     end
 
-    newStones(end+1) = thisStone*2024;
+    newStones(iNewStone) = thisStone*2024;
+    iNewStone = iNewStone + 1;
 end
 end
 
