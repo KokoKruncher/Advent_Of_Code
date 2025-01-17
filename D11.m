@@ -2,6 +2,7 @@
 % original: long af
 % after vectorisation: 20s
 % after preallocation: 5s
+% after removing loop: 8.5s
 
 clear; clc; close all
 
@@ -32,39 +33,40 @@ fprintf("Number of stones: %i\n",numel(stones))
 function newStones = blink(stones)
 nStones = numel(stones);
 
+% find out how many stones to add to preallocate
 nDigitsAllStones = numDigits(stones);
 isEvenNumDigits = isEven(nDigitsAllStones);
 nStonesToAdd = nnz(isEvenNumDigits);
 nNewStones = nStones + nStonesToAdd;
-% disp(nStones)
+newStones = nan(1,nNewStones);
 
-iNewStone = 1;
-newStones = nan(nNewStones,1);
-for iStone = 1:nStones
-    thisStone = stones(iStone);
-    
-    if thisStone == 0
-        newStones(iNewStone) = 1; %#ok<*AGROW>
-        iNewStone = iNewStone + 1;
-        continue
-    end
-    
-    if isEvenNumDigits(iStone)
-        % 1st half of digits
-        nDigitsThisStone = nDigitsAllStones(iStone);
-        
-        % 2nd half of digits
-        replacementStone1 = floor(thisStone/(10^(nDigitsThisStone/2))); 
-        replacementStone2 = rem(thisStone,10^(nDigitsThisStone/2));
+% for stones that dont get split into 2
+numIndicesToShift = cumsum(isEvenNumDigits);
+iStonesInNewArray = (1:nStones) + numIndicesToShift;
 
-        newStones(iNewStone) = replacementStone1;
-        newStones(iNewStone + 1) = replacementStone2;
-        iNewStone = iNewStone + 2;
-        continue
-    end
+% for stones that get split in two, their indices in new array are:
+iStonesToSplit = find(isEvenNumDigits);
+iReplacementStones1 = iStonesToSplit + (0:(nStonesToAdd-1));
+iReplacementStones2 = iReplacementStones1 + 1;
 
-    newStones(iNewStone) = thisStone*2024;
-    iNewStone = iNewStone + 1;
+% handle stones equal to 0
+isEqualZero = stones == 0;
+newStones(iStonesInNewArray(isEqualZero)) = 1;
+
+% handle stones that get split
+nDigitsEvenNumDigits = nDigitsAllStones(isEvenNumDigits);
+replacementStones1 = floor(stones(isEvenNumDigits)./(10.^(nDigitsEvenNumDigits./2)));
+replacementStones2 = rem(stones(isEvenNumDigits),10.^(nDigitsEvenNumDigits./2));
+newStones(iReplacementStones1) = replacementStones1;
+newStones(iReplacementStones2) = replacementStones2;
+
+% handle all other stones which get multiplied by 2024
+isMultiplied = ~(isEqualZero | isEvenNumDigits);
+stonesMultiplied = stones(isMultiplied).*2024;
+newStones(iStonesInNewArray(isMultiplied)) = stonesMultiplied;
+
+if any(isnan(newStones))
+    error("nansssss")
 end
 end
 
