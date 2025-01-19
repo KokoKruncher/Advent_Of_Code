@@ -2,17 +2,17 @@ clear; clc; close all
 
 %% Part 1
 filename = "D12 Data.txt";
-% input = readlines(filename);
-input = ["RRRRIICCFF"; ...
-"RRRRIICCCF"; ...
-"VVRRRCCFFF"; ...
-"VVRCCCJFFF"; ...
-"VVVVCJJCFE"; ...
-"VVIVCCJJEE"; ...
-"VVIIICJJEE"; ...
-"MIIIIIJJEE"; ...
-"MIIISIJEEE"; ...
-"MMMISSJEEE"];
+input = readlines(filename);
+% input = ["RRRRIICCFF"; ...
+% "RRRRIICCCF"; ...
+% "VVRRRCCFFF"; ...
+% "VVRCCCJFFF"; ...
+% "VVVVCJJCFE"; ...
+% "VVIVCCJJEE"; ...
+% "VVIIICJJEE"; ...
+% "MIIIIIJJEE"; ...
+% "MIIISIJEEE"; ...
+% "MMMISSJEEE"];
 
 gardenMap = parseInput(input);
 
@@ -44,21 +44,20 @@ for iRegion = 1:nRegions
     vertexGraph = createVertexGraph(regionNodes.iRow,regionNodes.iCol);
     
     % debug
-    % plotRegionAndVertices(regionNodes.iRow,regionNodes.iCol, ...
-    % vertexGraph,Nodes.iRow,vertexGraph,Nodes.iCol)
+    % 
     
     % vertices not on the side (outside or inside if it exists) have degree equal to 8
     isInsideRegionArea = vertexGraph.degree == 8;
-    regionSidesGraph = vertexGraph.rmnode(find(isInsideRegionArea));
+    regionSidesGraphOld = vertexGraph.rmnode(find(isInsideRegionArea));
 
     % diagonal edges have weight 0.5
-    isDiagonalEdge = regionSidesGraph.Edges.Weights == 0.5;
-    regionSidesGraph = regionSidesGraph.rmedge(find(isDiagonalEdge));
+    isDiagonalEdge = regionSidesGraphOld.Edges.Weights == 0.5;
+    regionSidesGraphOld = regionSidesGraphOld.rmedge(find(isDiagonalEdge));
 
     % the last stragglers of internal edges are those connecting "blocks" that are poking
     % out of the main shape by 1 block (in a 1 block cycle), making nodes that are of
-    % degree 3
-    regionSidesGraph = removeLastInternalEdges(regionSidesGraph);
+    % degree 3 or sometimes 4
+    regionSidesGraph = removeLastInternalEdges(regionSidesGraphOld);
 
     allCycles = regionSidesGraph.allcycles();
     nCycles = numel(allCycles);
@@ -67,6 +66,21 @@ for iRegion = 1:nRegions
     elseif nCycles == 0 || nCycles > 2
         error("Watafak, found %i cycles",nCycles)
     end
+
+    if nCycles == 2
+        hAxes = plotRegionAndVertices(regionNodes.iRow,regionNodes.iCol, ...
+            vertexGraph.Nodes.iRow,vertexGraph.Nodes.iCol);
+        hold(hAxes,'on');
+        x = regionSidesGraphOld.Nodes.iCol;
+        y = regionSidesGraphOld.Nodes.iRow;
+        plot(regionSidesGraphOld,'XData',x,'YData',y,'EdgeColor','red')
+        
+        x = regionSidesGraph.Nodes.iCol;
+        y = regionSidesGraph.Nodes.iRow;
+        hPlot = plot(regionSidesGraph,'XData',x,'YData',y,'EdgeColor','green');
+        hold(hAxes,'off')
+    end
+
     
     nDirectionChanges = nan(nCycles,1);
     for iCycle = 1:nCycles
@@ -82,10 +96,9 @@ for iRegion = 1:nRegions
         isDirectionChange = any(differenceToPreviousDirection ~= 0, 2);
         nDirectionChanges(iCycle) = nnz(isDirectionChange) + 1; % add initial direction
 
-        % if iRegion == 11
-        %     displ ay(directions)
-        %     display(differenceToPreviousDirection)
-        % end
+       if nCycles == 2
+           highlight(hPlot,thisCycle,circshift(thisCycle,1))
+       end
     end
     nSidesInRegion(iRegion) = sum(nDirectionChanges);
 
@@ -111,11 +124,12 @@ fprintf("Total fence price 2: %i\n",totalFencePrice2)
 
 
 %% Functions
-function plotRegionAndVertices(iRowRegion,iColRegion,iRowVertex,iColVertex)
+function hAxes = plotRegionAndVertices(iRowRegion,iColRegion,iRowVertex,iColVertex)
 iRowRegion = iRowRegion - min(iRowRegion) + 1 + 0.5;
 iColRegion = iColRegion - min(iColRegion) + 1 + 0.5;
 
 figure
+hAxes = axes;
 hold on
 scatter(iColRegion,iRowRegion,"DisplayName","Region")
 scatter(iColVertex,iRowVertex,"DisplayName","Vertex")
@@ -138,6 +152,10 @@ end
 function regionSidesGraph = removeLastInternalEdges(regionSidesGraph)
 [allCycleNodes,allCycleEdges] = regionSidesGraph.allcycles();
 nCycles = numel(allCycleEdges);
+
+if any(regionSidesGraph.degree == 6)
+    disp("Found node degree 6")
+end
 
 if nCycles == 1
     return
