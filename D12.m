@@ -35,15 +35,16 @@ totalFencePrice = sum(fencePrices);
 fprintf("Total fence price: %i\n",totalFencePrice)
 
 %% Part 2
-% get vertex locations for each region and make a graph. side nodes are nodes that have
-% degree of exactly 2. graph can have up to 2 components, 1 for outer fence and one for
-% inner fence if it exists. DFS each component, add a side when direction changes.
 nSides = nan(nRegions,1);
-for iRegion = 1:1
+for iRegion = 1:nRegions
     isNodeInRegion = nodeRegionIndx == iRegion;
 
     regionNodes = gardenGraph.Nodes(isNodeInRegion,:);
     [vertexRows,vertexCols] = gridIndxToVertex(regionNodes.iRow,regionNodes.iCol);
+
+    % debug
+    % plotRegionAndVertices(regionNodes.iRow,regionNodes.iCol,vertexRows,vertexCols)
+
     vertexGraph = createVertexGraph(vertexRows,vertexCols);
     
     % vertices not on the side (outside or inside if it exists) have degree equal to 8
@@ -54,8 +55,8 @@ for iRegion = 1:1
     isDiagonalEdge = regionSidesGraph.Edges.Weights == 0.5;
     regionSidesGraph = regionSidesGraph.rmedge(find(isDiagonalEdge));
 
-    % the last straggelers of internal edges are those connecting "blocks" that are poking
-    % out of the main shape by 1 block (in a 1 bcock cycle), making nodes that are of
+    % the last stragglers of internal edges are those connecting "blocks" that are poking
+    % out of the main shape by 1 block (in a 1 block cycle), making nodes that are of
     % degree 3
     regionSidesGraph = removeLastInternalEdges(regionSidesGraph);
 
@@ -92,6 +93,23 @@ y = regionSidesGraph.Nodes.iRow;
 z = zeros(size(x));
 plot(regionSidesGraph,'XData',x,'YData',y)
 %% Functions
+function plotRegionAndVertices(iRowRegion,iColRegion,iRowVertex,iColVertex)
+iRowRegion = iRowRegion - min(iRowRegion) + 1 + 0.5;
+iColRegion = iColRegion - min(iColRegion) + 1 + 0.5;
+
+figure
+hold on
+scatter(iColRegion,iRowRegion,"DisplayName","Region")
+scatter(iColVertex,iRowVertex,"DisplayName","Vertex")
+hold off
+grid on
+legend
+xlabel("Column")
+ylabel("Row")
+end
+
+
+
 function gardenMap = parseInput(input)
 gardenMap = split(input,"");
 gardenMap = gardenMap(:,2:end-1);
