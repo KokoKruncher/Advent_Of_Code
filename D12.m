@@ -38,14 +38,14 @@ fprintf("Total fence price: %i\n",totalFencePrice)
 nSidesInRegion = nan(nRegions,1);
 for iRegion = 1:nRegions
     isNodeInRegion = nodeRegionIndx == iRegion;
-
+    
+    % vertices are where the fence posts are
     regionNodes = gardenGraph.Nodes(isNodeInRegion,:);
-    [vertexRows,vertexCols] = gridIndxToVertex(regionNodes.iRow,regionNodes.iCol);
-
+    vertexGraph = createVertexGraph(regionNodes.iRow,regionNodes.iCol);
+    
     % debug
-    % plotRegionAndVertices(regionNodes.iRow,regionNodes.iCol,vertexRows,vertexCols)
-
-    vertexGraph = createVertexGraph(vertexRows,vertexCols);
+    % plotRegionAndVertices(regionNodes.iRow,regionNodes.iCol, ...
+    % vertexGraph,Nodes.iRow,vertexGraph,Nodes.iCol)
     
     % vertices not on the side (outside or inside if it exists) have degree equal to 8
     isInsideRegionArea = vertexGraph.degree == 8;
@@ -89,18 +89,18 @@ for iRegion = 1:nRegions
     end
     nSidesInRegion(iRegion) = sum(nDirectionChanges);
 
-    figure
-    x = vertexGraph.Nodes.iCol;
-    y = vertexGraph.Nodes.iRow;
-    plot(vertexGraph,'XData',x,'YData',y)
-
-    iLetter = find(nodeRegionIndx == iRegion,1,"first");
-    letter = gardenGraph.Nodes.letter(iLetter);
-    figure
-    x = regionSidesGraph.Nodes.iCol;
-    y = regionSidesGraph.Nodes.iRow;
-    plot(regionSidesGraph,'XData',x,'YData',y)
-    title(letter)
+    % figure
+    % x = vertexGraph.Nodes.iCol;
+    % y = vertexGraph.Nodes.iRow;
+    % plot(vertexGraph,'XData',x,'YData',y)
+    % 
+    % iLetter = find(nodeRegionIndx == iRegion,1,"first");
+    % letter = gardenGraph.Nodes.letter(iLetter);
+    % figure
+    % x = regionSidesGraph.Nodes.iCol;
+    % y = regionSidesGraph.Nodes.iRow;
+    % plot(regionSidesGraph,'XData',x,'YData',y)
+    % title(letter)
 end
 
 fencePrices2 = nSidesInRegion(:).*regionAreas(:);

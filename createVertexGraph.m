@@ -1,102 +1,44 @@
-function vertexGraph = createVertexGraph(vertexRows,vertexCols)
+function vertexGraph = createVertexGraph(gridRows,gridCols)
 arguments
-    vertexRows (:,1) double
-    vertexCols (:,1) double
+    gridRows (:,1) double
+    gridCols (:,1) double
 end
 
-nRowIndx = numel(vertexRows);
-nColIndx = numel(vertexCols);
-assert(nRowIndx == nColIndx,"Number of row and column indices don't match.")
+% convert coordinates from the entire map to the region, starting at (row,col) = (0,0)
+[vertexRows,vertexCols,elementRows,elementCols] = gridIndxToRegionIndx(gridRows,gridCols);
 
-gridSize = [max(vertexRows), max(vertexCols)];
-map = false(gridSize);
-iVertex = sub2ind(gridSize,vertexRows,vertexCols);
-map(iVertex) = true;
+regionSize = [max(vertexRows), max(vertexCols)];
+isVertex = false(regionSize);
+iVertex = sub2ind(regionSize,vertexRows,vertexCols);
+isVertex(iVertex) = true;
 
 % create node table to ensure that nodes without edges (area = 1) are accounted for
-nPoints = numel(map);
+nVertices = numel(isVertex);
 nodeTable = table();
-[nodeRows,nodeCols] = ind2sub(size(map),1:nPoints);
+[nodeRows,nodeCols] = ind2sub(size(isVertex),1:nVertices);
 nodeTable.iRow = nodeRows(:);
 nodeTable.iCol = nodeCols(:);
 
+nNodes = height(nodeTable);
+nodeIds = (1:nNodes)';
+nodeCoords = mat2cell([nodeRows(:),nodeCols(:)], ones(nNodes,1), 2);
+coordsToNodeId = dictionary(nodeCoords,nodeIds);
+nodeIdToCoords = dictionary(nodeIds,nodeCoords);
+
+% an element is a plant in the region. Each element has 4 vertices
+nElements = numel(elementRows);
+directionTopLeft = [-0.5, -0.5];
+directionTopRight = [-0.5, 0.5];
+directionBottomLeft = [0.5, -0.5];
+directionBottomRight = [0.5, 0.5];
+
+[endNodes,weights] = createEdgesAndWeights(nElements,elementRows,elementCols, ...
+    directionTopLeft,directionTopRight,directionBottomLeft,directionBottomRight, ...
+    coordsToNodeId,nodeIdToCoords);
+
 edgeTable = table();
-edgeTable.EndNodes = nan(8*nPoints,2);
-edgeTable.Weights = nan(8*nPoints,1);
-mapWidth = width(map);
-mapHeight = height(map);
-iNode = 0;
-iEdge = 0;
-for iWidth = 1:mapWidth
-    for iHeight = 1:mapHeight
-        % need to search all 4 directions plus diagonals to give info on whether it is on
-        % the edges of the region or not
-        point = map(iHeight,iWidth);
-        iNode = iNode + 1;
-        if ~point
-            continue
-        end
-        
-        % check up, down, left, right, edge weight 1
-        if iHeight > 1 && map(iHeight-1,iWidth)
-            iNodeUp = iNode - 1;
-            iEdge = iEdge + 1;
-            edgeTable.EndNodes(iEdge,:) = [iNode, iNodeUp];
-            edgeTable.Weights(iEdge) = 1;
-        end
-
-        if iHeight < mapHeight && map(iHeight+1,iWidth)
-            iNodeDown = iNode + 1;
-            iEdge = iEdge + 1;
-            edgeTable.EndNodes(iEdge,:) = [iNode, iNodeDown];
-            edgeTable.Weights(iEdge) = 1;
-        end
-
-        if iWidth < mapWidth && map(iHeight,iWidth+1)
-            iNodeRight = sub2ind([mapHeight,mapWidth],iHeight,iWidth+1);
-            iEdge = iEdge + 1;
-            edgeTable.EndNodes(iEdge,:) = [iNode, iNodeRight];
-            edgeTable.Weights(iEdge) = 1;
-        end
-
-        if iWidth > 1 && map(iHeight,iWidth-1)
-            iNodeLeft = sub2ind([mapHeight,mapWidth],iHeight,iWidth-1);
-            iEdge = iEdge + 1;
-            edgeTable.EndNodes(iEdge,:) = [iNode, iNodeLeft];
-            edgeTable.Weights(iEdge) = 1;
-        end
-
-        % check diagonals, edge weight 0.5
-        if iHeight > 1 && iWidth > 1 && map(iHeight-1,iWidth-1)
-            iNodeTopLeft = sub2ind([mapHeight,mapWidth],iHeight-1,iWidth-1);
-            iEdge = iEdge + 1;
-            edgeTable.EndNodes(iEdge,:) = [iNode, iNodeTopLeft];
-            edgeTable.Weights(iEdge) = 0.5;
-        end
-
-        if iHeight > 1 && iWidth < mapWidth && map(iHeight-1,iWidth+1)
-            iNodeTopRight = sub2ind([mapHeight,mapWidth],iHeight-1,iWidth+1);
-            iEdge = iEdge + 1;
-            edgeTable.EndNodes(iEdge,:) = [iNode, iNodeTopRight];
-            edgeTable.Weights(iEdge) = 0.5;
-        end
-
-        if iHeight < mapHeight && iWidth > 1 && map(iHeight+1,iWidth-1)
-            iNodeBottomLeft = sub2ind([mapHeight,mapWidth],iHeight+1,iWidth-1);
-            iEdge = iEdge + 1;
-            edgeTable.EndNodes(iEdge,:) = [iNode, iNodeBottomLeft];
-            edgeTable.Weights(iEdge) = 0.5;
-        end
-
-        if iHeight < mapHeight && iWidth < mapWidth && map(iHeight+1,iWidth+1)
-            iNodeBottomRight = sub2ind([mapHeight,mapWidth],iHeight+1,iWidth+1);
-            iEdge = iEdge + 1;
-            edgeTable.EndNodes(iEdge,:) = [iNode, iNodeBottomRight];
-            edgeTable.Weights(iEdge) = 0.5;
-        end
-    end
-end
-edgeTable = edgeTable(~any(isnan(edgeTable.EndNodes),2),:);
+edgeTable.EndNodes = vertcat(endNodes{:});
+edgeTable.Weights = vertcat(weights{:});
 vertexGraph = graph(edgeTable,nodeTable);
 
 % remove edges counted more than once
@@ -107,4 +49,86 @@ isVertex = vertexGraph.degree > 1;
 nNodes = vertexGraph.numnodes;
 allNodeIds = 1:nNodes;
 vertexGraph = vertexGraph.rmnode(allNodeIds(~isVertex));
+end
+
+
+
+function [vertexRows,vertexCols,elementRows,elementCols] = gridIndxToRegionIndx( ...
+    gridRows,gridCols)
+arguments
+    gridRows (:,1) double
+    gridCols (:,1) double
+end
+nRows = numel(gridRows); nCols = numel(gridCols);
+assert(nRows == nCols,"Number of row and column indices don't match.")
+
+% push region to top left, + 0.5 to make room for the vertices
+elementRows = gridRows - min(gridRows) + 1 + 0.5;
+elementCols = gridCols - min(gridCols) + 1 + 0.5;
+
+% top left vertex, top right, bottom left, bottom right
+vertexCoords = [elementRows-0.5, elementCols-0.5; ...
+    elementRows-0.5, elementCols+0.5; ...
+    elementRows+0.5, elementCols-0.5; ...
+    elementRows+0.5, elementCols+0.5];
+
+vertexCoords = unique(vertexCoords, 'rows');
+vertexRows = vertexCoords(:,1);
+vertexCols = vertexCoords(:,2);
+end
+
+
+
+function distance = manhattanDistance(directions)
+arguments
+    directions (:,2)
+end
+distance = abs(directions(:,1)) + abs(directions(:,2));
+end
+
+
+
+function [endNodes,weights] = createEdgesAndWeights(nElements,elementRows,elementCols, ...
+    directionTopLeft, directionTopRight,directionBottomLeft,directionBottomRight, ...
+    coordsToNodeId, nodeIdToCoords)
+
+endNodes = cell(nElements,1);
+weights = cell(nElements,1);
+
+for iElement = 1:nElements
+    elementCoord = [elementRows(iElement), elementCols(iElement)];
+    vertexCoordTopLeft = elementCoord + directionTopLeft;
+    vertexCoordTopRight = elementCoord + directionTopRight;
+    vertexCoordBottomLeft = elementCoord + directionBottomLeft;
+    vertexCoordBottomRight = elementCoord + directionBottomRight;
+
+    nodeIdTopLeft = coordsToNodeId({vertexCoordTopLeft});
+    nodeIdTopRight = coordsToNodeId({vertexCoordTopRight});
+    nodeIdBottomLeft = coordsToNodeId({vertexCoordBottomLeft});
+    nodeIdBottomRight = coordsToNodeId({vertexCoordBottomRight});
+
+    allVertexNodeIds = [nodeIdTopLeft,nodeIdTopRight,nodeIdBottomLeft,nodeIdBottomRight];
+
+    % each vertex should of an element should have an edge to the all other vertices of
+    % that element
+    vertexNodeIdCombinations = nchoosek(allVertexNodeIds,2);
+    endNodes{iElement} = vertexNodeIdCombinations;
+
+    nEdges = height(vertexNodeIdCombinations);
+    vertexCoords = nodeIdToCoords(vertexNodeIdCombinations);
+    edgeDirections = vertcat(vertexCoords{:,2}) - vertcat(vertexCoords{:,1});
+    edgeManhattanDistances = manhattanDistance(edgeDirections);
+
+    if ~all(edgeManhattanDistances == 1 | edgeManhattanDistances == 2)
+        error("Some edge manhattan distances invalid.")
+    end
+
+    % manhattan distance = 1 means cardinal directions, 2 means diagonals
+    % assign different weights to differentiate them
+    weightsThisElement = nan(nEdges,1);
+    weightsThisElement(edgeManhattanDistances == 1) = 1;
+    weightsThisElement(edgeManhattanDistances == 2) = 0.5;
+
+    weights{iElement} = weightsThisElement;
+end
 end
