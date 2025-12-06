@@ -31,7 +31,44 @@ nFreshIngredients = nnz(isFresh);
 
 fprintf("Number of fresh ingredients = %i\n", nFreshIngredients);
 
+%% Part 2
+nRanges = height(freshIdRanges);
+rangeMin = freshIdRanges(:,1);
+rangeMax = freshIdRanges(:,2);
+
+for ii = 2:nRanges
+    [isMinSeen, iMinSeen] = isWithin(rangeMin(ii), freshIdRanges(1:ii-1,:));
+    if isMinSeen
+        assert(numel(iMinSeen) == 1, "One or more of the previous ranges weren't merged properly.")
+        freshIdRanges = removeRedundantRange(freshIdRanges, iMinSeen, ii);
+    end
+
+    [isMaxSeen, iMaxSeen] = isWithin(rangeMax(ii), freshIdRanges(1:ii-1,:));
+    if isMaxSeen
+        assert(numel(iMaxSeen) == 1, "One or more of the previous ranges weren't merged properly.")
+        freshIdRanges = removeRedundantRange(freshIdRanges, iMaxSeen, ii);
+    end
+end
+nFreshIds = sum(freshIdRanges(:,2) - freshIdRanges(:,1) + 1, "omitnan");
+
+fprintf("Number of fresh ingredient IDs = %i\n", nFreshIds);
+
 %% Functions
-function TF = isWithin(num, ranges)
-TF = any((num >= ranges(:,1)) & (num <= ranges(:,2)), 1);
+function [TF, iWithin] = isWithin(num, ranges)
+bWithin = (num >= ranges(:,1)) & (num <= ranges(:,2));
+TF = any(bWithin);
+iWithin = find(bWithin);
+end
+
+
+function ranges = removeRedundantRange(ranges, oldRow, newRow)
+if ranges(newRow,1) > ranges(oldRow,1)
+    ranges(newRow,1) = ranges(oldRow,1);
+end
+
+if ranges(newRow,2) < ranges(oldRow,2)
+    ranges(newRow,2) = ranges(oldRow,2);
+end
+
+ranges(oldRow,:) = nan;
 end
