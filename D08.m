@@ -30,6 +30,26 @@ connections = connections.addedge(distances.StartID(1:N_CONNECTIONS), distances.
 
 [iCircuits, circuitSizes] = connections.conncomp();
 sortedCircuitSizes = sort(circuitSizes, "descend");
+result1 = prod(sortedCircuitSizes(1:3));
 
-result = prod(sortedCircuitSizes(1:3));
-fprintf("Result = %i\n", result);
+fprintf("Result, part 1 = %i\n", result1);
+
+%% Part 2
+isOneCircuit = all(iCircuits == iCircuits(1));
+iEdge = N_CONNECTIONS;
+while ~isOneCircuit
+    iEdge = iEdge + 1;
+    sourceId = distances.StartID(iEdge);
+    targetId = distances.EndID(iEdge);
+    connections = connections.addedge(sourceId, targetId);
+
+    iCircuits = connections.conncomp();
+    isOneCircuit = all(iCircuits == iCircuits(1));
+end
+
+coordsLastSource = coordsDict{sourceId};
+coordsLastTarget = coordsDict{targetId};
+result2 = coordsLastSource(1) * coordsLastTarget(1);
+
+fprintf("Result, part 2 = %i\n", result2)
+
