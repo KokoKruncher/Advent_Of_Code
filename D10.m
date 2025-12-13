@@ -5,7 +5,6 @@ manual = manual(manual ~= "");
 
 Machines = parseManual(manual);
 
-% p = createLightPermutations(4)
 %% Part 1
 % Toggling the same button an even number of times does absolutely nothing to the final lights state!
 % Hence, each button should be toggled either 0 times or 1 time only.
@@ -31,54 +30,17 @@ minimumLightToggles = sum([Machines.minimumLightToggles]);
 fprintf("Minumum total number of light toggles = %i\n", minimumLightToggles)
 
 %% Part 2
-hPool = parpool("Threads", 4);
-parfor iMachine = 1:nMachines
+tic
+for iMachine = 1:nMachines
     Machines(iMachine).minimumJoltageToggles = solveMinJoltageToggles(Machines(iMachine));
-    
 end
-hPool.delete();
+toc
 
 minimumJoltageToggles = sum([Machines.minimumJoltageToggles]);
 fprintf("Minumum total number of joltage toggles = %i\n", minimumJoltageToggles)
 
 
 %% Functions
-function minToggles = solveMinJoltageToggles(Machine)
-N_START_POINTS = 40;
-
-A = Machine.buttons;
-B = Machine.joltages;
-nButtons = height(A);
-minimisationFcn = @(x) sum(x);
-constraintFcnEqualZero = @(x) nonLinearConstraint(x, A, B);
-lowerBounds = zeros(1, nButtons);
-upperBounds = repmat(max(B), 1, nButtons);
-opts = optimoptions("lsqnonlin", "Algorithm", "interior-point");
-
-problemObj = createOptimProblem("lsqnonlin", ...
-    'objective', minimisationFcn, ...
-    'nonlcon', constraintFcnEqualZero, ...
-    'lb', lowerBounds, ...
-    'ub', upperBounds, ...
-    'x0', zeros(1, nButtons), ...
-    'options', opts);
-% x = lsqnonlin(minimisationFcn, zeros(1, nButtons), lowerBounds, upperBounds, [], [], [], [], constraintFcnEqualZero)
-multiStartObj = MultiStart();
-
-warning("off", 'MATLAB:nearlySingularMatrix')
-minToggles = multiStartObj.run(problemObj, N_START_POINTS);
-warning("on", 'MATLAB:nearlySingularMatrix')
-
-minToggles = sum(round(minToggles));
-end
-
-
-function [c, ceq] = nonLinearConstraint(x, A, B)
-c = [];
-ceq = [x * A - B, round(x) - x];
-end
-
-
 function Machines = parseManual(manual)
 Machines = struct();
 nRows = numel(manual);
@@ -104,6 +66,28 @@ for iRow = nRows:-1:1
     Machines(iRow).buttons = buttons;
     Machines(iRow).joltages = joltages;
 end
+end
+
+
+function minToggles = solveMinJoltageToggles(Machine)
+% Solve Ax = b, where:
+% A = The button to joltage increment matrix transposed
+% b = Required joltage vector transposed
+% x = Vector specifying the number of times each button should be pressed.
+% subject to the constraints x >= 0, and all elements of x are integers, while minimising the sum of elements in x
+
+A = double(Machine.buttons.');
+b = Machine.joltages.';
+
+nButtons = width(A);
+coefficients = ones(nButtons, 1);
+integerConstraints = (1:nButtons).';
+lowerBounds = zeros(nButtons, 1);
+upperBounds = repmat(max(b), nButtons, 1);
+opts = optimoptions("intlinprog", "Display", "off");
+
+minToggles = intlinprog(coefficients, integerConstraints, [], [], A, b, lowerBounds, upperBounds, [], opts);
+minToggles = sum(round(minToggles));
 end
 
 
