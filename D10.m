@@ -87,7 +87,7 @@ upperBounds = repmat(max(b), nButtons, 1);
 opts = optimoptions("intlinprog", "Display", "off");
 
 minToggles = intlinprog(coefficients, integerConstraints, [], [], A, b, lowerBounds, upperBounds, [], opts);
-minToggles = sum(round(minToggles));
+minToggles = sum(minToggles);
 end
 
 
