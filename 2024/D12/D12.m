@@ -2,17 +2,7 @@ clear; clc; close all
 
 %% Part 1 & Part 2
 filename = "D12 Data.txt";
-% input = readlines(filename);
-input = ["RRRRIICCFF"; ...
-         "RRRRIICCCF"; ...
-         "VVRRRCCFFF"; ...
-         "VVRCCCJFFF"; ...
-         "VVVVCJJCFE"; ...
-         "VVIVCCJJEE"; ...
-         "VVIIICJJEE"; ...
-         "MIIIIIJJEE"; ...
-         "MIIISIJEEE"; ...
-         "MMMISSJEEE"];
+input = readlines(filename);
 
 gardenMap = parseInput(input);
 neighbours = constructGraph(gardenMap);
@@ -58,17 +48,36 @@ while any(~isInKnownComponent, "all")
     % A lone node has 4 sides with length of 1.
     % Each node that neighbours it reduces the contribution of the square to the total perimeter by 1.
     % If a node is completely internal (surrounded on all 4 sides), then it's contribution would be 0.
-    neighbourKernel = [0, 1, 0; 1, 0, 1; 0, 1, 0];
+    neighbourKernel = [0, 1, 0; ...
+                       1, 0, 1; ...
+                       0, 1, 0];
     perimeterConvolution = conv2(isConnected, neighbourKernel, "same");
     ThisComponent.perimeter = sum(isConnected .* (4 - perimeterConvolution), "all");
 
     % The number of sides in a polygon is equal to the number of corners/vertices.
-    cornerKernel = ones(2, 2);
+    % Initial idea was to use a kernel of [1, 1; 1, 1], and if the convolution was 1, it was a convex corner and if the
+    % convolution was 3, it was a concave corner.
+    % But this cannot handle the edge case below:
+    %
+    % AAAAAA
+    % AAABBA
+    % AAABBA
+    % ABBAAA
+    % ABBAAA
+    % AAAAAA
+    %
+    % All the A's form one region and the B's form two regions. In between the two B's the fences of the A region meet
+    % diagonally and there are 2 corners there, but the convolution would result in a value of 2, which won't be picked
+    % up as a corner.
+    %
+    % To handle this, use a kernel of [-1, 1; 1, -1] instead.
+    % If the absolute value of the convolution is 1, then it is a traditional corner.
+    % But if the absolute value is 2, then it is where 2 corners of the fence of a single region meet.
+    % To count the number of corners, simply sum the absolute value of the convolution result.
+    cornerKernel = [-1, 1; ...
+                    1, -1];
     cornerConvolution = conv2(isConnected, cornerKernel);
-    isConvexCorner = cornerConvolution == 1;
-    isConcaveCorner = cornerConvolution == 3;
-    isCorner = isConvexCorner | isConcaveCorner;
-    ThisComponent.nSides = nnz(isCorner);
+    ThisComponent.nSides = sum(abs(cornerConvolution), "all");
 
     component(iComponent) = ThisComponent;
     isInKnownComponent = isInKnownComponent | isConnected;
