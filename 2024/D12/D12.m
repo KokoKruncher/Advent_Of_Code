@@ -1,6 +1,6 @@
 clear; clc; close all
 
-%% Part 1
+%% Part 1 & Part 2
 filename = "D12 Data.txt";
 % input = readlines(filename);
 input = ["RRRRIICCFF"; ...
@@ -15,264 +15,146 @@ input = ["RRRRIICCFF"; ...
          "MMMISSJEEE"];
 
 gardenMap = parseInput(input);
+neighbours = constructGraph(gardenMap);
 
-gardenGraph = mapToGraph(gardenMap);
+components = analyseComponents(gardenMap, neighbours);
 
-% each node starts off with a perimiter of 4 (1 on each side). every new edge decreases
-% its perimeter by 1.
-[nodeRegionIndx,regionAreas] = gardenGraph.conncomp;
-nRegions = max(nodeRegionIndx);
-regionPerimeters = nan(size(regionAreas));
-nodeDegrees = gardenGraph.degree();
-for iRegion = 1:nRegions
-    isNodeInRegion = nodeRegionIndx == iRegion;
-    nNodesInRegion = nnz(isNodeInRegion);
-    regionPerimeters(iRegion) = sum(4 - nodeDegrees(isNodeInRegion));
-end
-fencePrices = regionPerimeters.*regionAreas;
-totalFencePrice = sum(fencePrices);
+componentIds = 1:components.numEntries;
+totalPrice1 = sum([components(componentIds).area] .* [components(componentIds).perimeter]);
+totalPrice2 = sum([components(componentIds).area] .* [components(componentIds).nSides]);
 
-fprintf("Total fence price: %i\n",totalFencePrice)
-
-%% Part 2
-% Number of sides = number of corner nodes. Corner nores are nodes with degree 2 and with
-% an edge weight sum of 3. This eliminates nodes of degree 2 where it's neighbours form a
-% straight line with it.
-isNodeDegree2 = gardenGraph.degree() == 2;
-nodesDegree2 = find(isNodeDegree2);
-isEdgeOfNodeDegree2 = any(ismember(gardenGraph.Edges.EndNodes,nodesDegree2),2);
-edgeTableOfNodesDegree2 = gardenGraph.Edges(isEdgeOfNodeDegree2,:);
-
-% Can't vectorise this because some corners are next to other corners, which means some
-% edges need to be considered more than once
-nNodesDegree2 = nnz(isNodeDegree2);
-isCornerNode = false(nNodesDegree2,1);
-for ii = 1:nNodesDegree2
-    thisNode = nodesDegree2(ii);
-    isEdgeOfThisNode = any(edgeTableOfNodesDegree2.EndNodes == thisNode,2);
-    assert(nnz(isEdgeOfThisNode) == 2)
-    edgeWeightSum = sum(edgeTableOfNodesDegree2.Weight(isEdgeOfThisNode));
-    if edgeWeightSum == 3
-        isCornerNode(ii) = true;
-    end
-end
-cornerNodes = nodesDegree2(isCornerNode);
-
-% redefine isCornerNode to reference the entire list of nodes instead of just nodes of
-% degree 2.
-nNodesTotal = height(gardenGraph.Nodes);
-isCornerNode = ismember((1:nNodesTotal)',cornerNodes);
-
-nSidesInRegion = nan(1,nRegions);
-for iRegion = 1:nRegions
-    isNodeInRegion = nodeRegionIndx == iRegion;
-    nRegionCornerNodes = nnz(isNodeInRegion' & isCornerNode);
-    nSidesInRegion(iRegion) = nRegionCornerNodes;
-end
-fencePrices2 = nSidesInRegion.*regionAreas;
-totalFencePrice2 = sum(fencePrices2);
-
-fprintf("Total fence price 2: %i\n",totalFencePrice2)
-
-% nSidesInRegion = nan(nRegions,1);
-% for iRegion = 1:nRegions
-%     isNodeInRegion = nodeRegionIndx == iRegion;
-% 
-%     % vertices are where the fence posts are
-%     regionNodes = gardenGraph.Nodes(isNodeInRegion,:);
-%     vertexGraph = createVertexGraph(regionNodes.iRow,regionNodes.iCol);
-% 
-%     % debug
-%     % 
-% 
-%     % vertices not on the side (outside or inside if it exists) have degree equal to 8
-%     isInsideRegionArea = vertexGraph.degree == 8;
-%     regionSidesGraphOld = vertexGraph.rmnode(find(isInsideRegionArea));
-% 
-%     % diagonal edges have weight 0.5
-%     isDiagonalEdge = regionSidesGraphOld.Edges.Weights == 0.5;
-%     regionSidesGraphOld = regionSidesGraphOld.rmedge(find(isDiagonalEdge));
-% 
-%     % the last stragglers of internal edges are those connecting "blocks" that are poking
-%     % out of the main shape by 1 block (in a 1 block cycle), making nodes that are of
-%     % degree 3 or sometimes 4
-%     regionSidesGraph = removeLastInternalEdges(regionSidesGraphOld);
-% 
-%     allCycles = regionSidesGraph.allcycles();
-%     nCycles = numel(allCycles);
-%     if nCycles == 2
-%         disp("Found 2 cycles")
-%     elseif nCycles == 0 || nCycles > 2
-%         error("Watafak, found %i cycles",nCycles)
-%     end
-% 
-%     if nCycles == 2
-%         hAxes = plotRegionAndVertices(regionNodes.iRow,regionNodes.iCol, ...
-%             vertexGraph.Nodes.iRow,vertexGraph.Nodes.iCol);
-%         hold(hAxes,'on');
-%         x = regionSidesGraphOld.Nodes.iCol;
-%         y = regionSidesGraphOld.Nodes.iRow;
-%         plot(regionSidesGraphOld,'XData',x,'YData',y,'EdgeColor','red')
-% 
-%         x = regionSidesGraph.Nodes.iCol;
-%         y = regionSidesGraph.Nodes.iRow;
-%         hPlot = plot(regionSidesGraph,'XData',x,'YData',y,'EdgeColor','green');
-%         hold(hAxes,'off')
-%     end
-% 
-% 
-%     nDirectionChanges = nan(nCycles,1);
-%     for iCycle = 1:nCycles
-%         thisCycle = allCycles{iCycle};
-% 
-%         % important to include the final move back to the first node as that can have a
-%         % change in direction too
-%         nodesInLoop = [thisCycle,thisCycle(1)];
-%         coords = [regionSidesGraph.Nodes.iRow(nodesInLoop), ...
-%             regionSidesGraph.Nodes.iCol(nodesInLoop)];
-%         directions = diff(coords,1,1);
-%         differenceToPreviousDirection = diff(directions,1,1);
-%         isDirectionChange = any(differenceToPreviousDirection ~= 0, 2);
-%         nDirectionChanges(iCycle) = nnz(isDirectionChange) + 1; % add initial direction
-% 
-%        if nCycles == 2
-%            highlight(hPlot,thisCycle,circshift(thisCycle,1))
-%        end
-%     end
-%     nSidesInRegion(iRegion) = sum(nDirectionChanges);
-% 
-%     % figure
-%     % x = vertexGraph.Nodes.iCol;
-%     % y = vertexGraph.Nodes.iRow;
-%     % plot(vertexGraph,'XData',x,'YData',y)
-%     % 
-%     % iLetter = find(nodeRegionIndx == iRegion,1,"first");
-%     % letter = gardenGraph.Nodes.letter(iLetter);
-%     % figure
-%     % x = regionSidesGraph.Nodes.iCol;
-%     % y = regionSidesGraph.Nodes.iRow;
-%     % plot(regionSidesGraph,'XData',x,'YData',y)
-%     % title(letter)
-% end
-% 
-% fencePrices2 = nSidesInRegion(:).*regionAreas(:);
-% totalFencePrice2 = sum(fencePrices2);
-% 
-% fprintf("Total fence price 2: %i\n",totalFencePrice2)
-
+fprintf("Total price, part 1 = %i\n", totalPrice1);
+fprintf("Total price, part 2 = %i\n", totalPrice2);
 
 
 %% Functions
-function hAxes = plotRegionAndVertices(iRowRegion,iColRegion,iRowVertex,iColVertex)
-iRowRegion = iRowRegion - min(iRowRegion) + 1 + 0.5;
-iColRegion = iColRegion - min(iColRegion) + 1 + 0.5;
-
-figure
-hAxes = axes;
-hold on
-scatter(iColRegion,iRowRegion,"DisplayName","Region")
-scatter(iColVertex,iRowVertex,"DisplayName","Vertex")
-hold off
-grid on
-legend
-xlabel("Column")
-ylabel("Row")
-end
-
-
-
 function gardenMap = parseInput(input)
 gardenMap = split(input,"");
 gardenMap = gardenMap(:,2:end-1);
 end
 
 
+function component = analyseComponents(gardenMap, neighbours)
+gardenSize = size(gardenMap);
+component = configureDictionary("double", "struct");
+isInKnownComponent = false(gardenSize);
+iComponent = 0;
+while any(~isInKnownComponent, "all")
+    if iComponent > 1000
+        error("bruh")
+    end
+    iComponent = iComponent + 1;
+    node = find(~isInKnownComponent, 1, "first");
+    isConnected = false(gardenSize);
+    isConnected = findConnectedComponent(node, neighbours, isConnected);
 
-function regionSidesGraph = removeLastInternalEdges(regionSidesGraph)
-[allCycleNodes,allCycleEdges] = regionSidesGraph.allcycles();
-nCycles = numel(allCycleEdges);
+    ThisComponent = struct();
+    ThisComponent.area = nnz(isConnected);
 
-if any(regionSidesGraph.degree == 6)
-    disp("Found node degree 6")
+    % Debug
+    ThisComponent.letter = gardenMap(node);
+    ThisComponent.isConnected = isConnected;
+
+    % A lone node has 4 sides with length of 1.
+    % Each node that neighbours it reduces the contribution of the square to the total perimeter by 1.
+    % If a node is completely internal (surrounded on all 4 sides), then it's contribution would be 0.
+    neighbourKernel = [0, 1, 0; 1, 0, 1; 0, 1, 0];
+    perimeterConvolution = conv2(isConnected, neighbourKernel, "same");
+    ThisComponent.perimeter = sum(isConnected .* (4 - perimeterConvolution), "all");
+
+    % The number of sides in a polygon is equal to the number of corners/vertices.
+    cornerKernel = ones(2, 2);
+    cornerConvolution = conv2(isConnected, cornerKernel);
+    isConvexCorner = cornerConvolution == 1;
+    isConcaveCorner = cornerConvolution == 3;
+    isCorner = isConvexCorner | isConcaveCorner;
+    ThisComponent.nSides = nnz(isCorner);
+
+    component(iComponent) = ThisComponent;
+    isInKnownComponent = isInKnownComponent | isConnected;
+end
 end
 
-if nCycles == 1
+
+function isConnected = findConnectedComponent(node, neighbours, isConnected)
+% DFS
+if isConnected(node)
     return
 end
 
-cycleSizes = cellfun(@numel,allCycleEdges);
-if any(cycleSizes < 4)
-    error("Encountered cycle with less than 4 edges")
+isConnected(node) = true;
+
+if ~neighbours.isKey(node)
+    return
 end
 
-[~,iLargestCycle] = max(cycleSizes);
-edgesLargestCycle = allCycleEdges{iLargestCycle};
+connectedNodes = neighbours{node};
+for thisNode = connectedNodes(:).'
+    isConnected = findConnectedComponent(thisNode, neighbours, isConnected);
+end
+end
 
-isOneBlockCycle = cycleSizes == 4;
-oneBlockCycleEdges = allCycleEdges(isOneBlockCycle);
-oneBlockCycleNodes = allCycleNodes(isOneBlockCycle);
 
-nNodes = regionSidesGraph.numnodes;
-nodeDegrees = regionSidesGraph.degree();
-degreeOfNodeId = dictionary(1:nNodes,nodeDegrees');
+function neighbours = constructGraph(gardenMap)
+directions = [1, 0; ...
+             0, -1; ...
+             -1, 0; ...
+             0, 1];
+nDirections = height(directions);
 
-nOneBlockCycles = nnz(isOneBlockCycle);
-isInsideEdgeOfRegion = false(nOneBlockCycles,1);
-for i = 1:nOneBlockCycles
-    thisCycleNodes = oneBlockCycleNodes{i};
-    thisCycleNodeDegrees = degreeOfNodeId(thisCycleNodes);
-    
-    if all(thisCycleNodeDegrees == 2)
-        isInsideEdgeOfRegion(i) = true;
+mapWidth = width(gardenMap);
+mapHeight = height(gardenMap);
+mapSize = size(gardenMap);
+nElements = numel(gardenMap);
+
+neighbours = configureDictionary("double", "cell");
+for index = 1:nElements
+    letter = gardenMap(index);
+    position = toSubscripts(index);
+
+    for iDirection = 1:nDirections
+        newPosition = position + directions(iDirection,:);
+        if ~isInBounds(newPosition)
+            continue
+        end
+
+        newLetter = gardenMap(newPosition(1), newPosition(2));
+        if newLetter ~= letter
+            continue
+        end
+        
+        newIndex = toLinearIndex(newPosition);
+        if neighbours.isKey(index)
+            neighbours{index}(end+1) = newIndex;
+        else
+            neighbours{index} = newIndex;
+        end
     end
 end
-nInsideEdgesOfRegion = nnz(isInsideEdgeOfRegion);
 
-if nInsideEdgesOfRegion > 1
-    error("Detected %i inside edges of region. Max should be 1",nInsideEdgesOfRegion)
-end
+% Nested functions
+    function subscripts = toSubscripts(linearIndex)
+        [row, col] = ind2sub(mapSize, linearIndex);
+        subscripts = [row, col];
+    end
 
-if any(isInsideEdgeOfRegion)
-    edgesInsideEdgeOfRegion = oneBlockCycleEdges{isInsideEdgeOfRegion};
-else
-    edgesInsideEdgeOfRegion = [];
-end
 
-validEdges = [edgesLargestCycle(:); edgesInsideEdgeOfRegion(:)];
+    function linearIndex = toLinearIndex(subscripts)
+        linearIndex = sub2ind(mapSize, subscripts(1), subscripts(2));
+    end
 
-nEdgesInitial = regionSidesGraph.numedges;
-allEdgesInitial = 1:nEdgesInitial;
-edgesToRemove = setdiff(allEdgesInitial,validEdges);
-regionSidesGraph = regionSidesGraph.rmedge(edgesToRemove);
 
-% isOneBlockCycle = cellfun(@numel,allCycleEdges) == 4;
-% 
-% if ~any(isOneBlockCycle)
-%     return
-% end
-% 
-% oneBlockCycleEdges = allCycleEdges(isOneBlockCycle);
-% oneBlockCycleEdges = [oneBlockCycleEdges{:}]; % concat into one row vector
-% 
-% nNodes = regionSidesGraph.numnodes;
-% sourceNodes = regionSidesGraph.Edges.EndNodes(:,1);
-% targetNodes = regionSidesGraph.Edges.EndNodes(:,2);
-% nodeDegrees = regionSidesGraph.degree();
-% degreeOfNodeId = dictionary(1:nNodes,nodeDegrees');
-% sourceNodeDegrees = degreeOfNodeId(sourceNodes);
-% targetNodeDegrees = degreeOfNodeId(targetNodes);
-% cond1 = targetNodeDegrees == 3 & sourceNodeDegrees == 3;
-% cond2 = targetNodeDegrees == 3 & sourceNodeDegrees == 4;
-% cond3 = targetNodeDegrees == 4 & sourceNodeDegrees == 3;
-% isEdgeToNodesOfDegree3OrDegree3And4 = cond1 | cond2 | cond3;
-% iEdgeToNodesOfDegree3 = find(isEdgeToNodesOfDegree3OrDegree3And4);
-% 
-% isInternalEdge = ismember(oneBlockCycleEdges,iEdgeToNodesOfDegree3);
-% 
-% if ~any(isInternalEdge)
-%     return
-% end
-% 
-% internalEdges = oneBlockCycleEdges(isInternalEdge);
-% regionSidesGraph = regionSidesGraph.rmedge(internalEdges);
+    function tf = isInBounds(subscripts)
+        tf = false;
+
+        if subscripts(1) < 1 || subscripts(1) > mapHeight
+            return
+        end
+
+        if subscripts(2) < 1 || subscripts(2) > mapWidth
+            return
+        end
+
+        tf = true;
+    end
 end
