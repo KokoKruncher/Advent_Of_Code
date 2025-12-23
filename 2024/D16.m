@@ -4,7 +4,9 @@ maze = readlines("D16 Data.txt");
 maze(maze == "") = [];
 
 %% Part 1
+tic
 minimumScore = dijkstra(maze);
+toc
 fprintf("Minimum score using Dijkstra's algorithm = %i\n", minimumScore);
 
 %% Functions
@@ -34,13 +36,13 @@ score = dictionary();
 nodesToCheck = PriorityQueue(1000);
 
 score({startPosition}) = 0;
-nodesToCheck.push({startPosition, START_DIRECTION}, 0);
+nodesToCheck.push([startPosition, START_DIRECTION], 0);
 iter = 0;
 while nodesToCheck.hasElements()
     iter = iter + 1;
     [currentNodeInfo, currentScore] = nodesToCheck.pop();
-    currentPosition = currentNodeInfo{1};
-    currentDirection = currentNodeInfo{2};
+    currentPosition = currentNodeInfo(1:2);
+    currentDirection = currentNodeInfo(3:4);
 
     if isequal(currentPosition, endPosition)
         break
@@ -66,7 +68,7 @@ while nodesToCheck.hasElements()
         score({thisNeighbourPosition}) = thisNeighbourScore;
 
         thisNeighbourDirection = neighbourDirections(ii,:);
-        nodesToCheck.push({thisNeighbourPosition, thisNeighbourDirection}, thisNeighbourScore);
+        nodesToCheck.push([thisNeighbourPosition, thisNeighbourDirection], thisNeighbourScore);
     end
 end
 
