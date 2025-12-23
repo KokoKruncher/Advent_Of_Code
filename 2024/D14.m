@@ -35,10 +35,53 @@ safetyFactor = inQuadrant1 * inQuadrant2 * inQuadrant3 * inQuadrant4;
 
 fprintf("Safety factor = %i\n", safetyFactor);
 
-% plotMap(positions, WIDTH, HEIGHT)
+%% Part 2
+% Heuristic: To form a christmas tree, each row will either have 0 or 1 contiguous blocks that have a robot.
+positions = initialPositions;
+nSeconds = 0;
+foundTree = false;
+while nSeconds <= 1e6
+    nSeconds = nSeconds + 1;
+    positions = mod(positions + velocities, [WIDTH; HEIGHT]);
+    robotMap = createRobotMap(positions, WIDTH, HEIGHT);
+
+    isTree = all(sum(diff(robotMap, 1, 2) ~= 0, 2) <= 2);
+    if isTree
+        foundTree = true;
+        break
+    end
+end
+
+% filePath = "Outputs/D14_Part2.txt";
+% [fid, errorMessage] = fopen(filePath, 'w+');
+% cleanupObj = onCleanup(@() fclose(fid));
+% 
+% if fid == -1
+%     error("Couldn't open file!\nError Message: %s", errorMessage)
+% end
+% 
+% positions = initialPositions;
+% for nSeconds = 1:SECONDS_PART_2
+%     positions = mod(positions + velocities, [WIDTH; HEIGHT]);
+% 
+%     robotMap = createVisualMap(positions, WIDTH, HEIGHT);
+%     fprintf(fid, "t = %i:\n\n", nSeconds);
+%     fprintf(fid, "%s\n\n", robotMap);
+% end
+% fclose(fid);
 
 %% Functions
-function plotMap(positions, WIDTH, HEIGHT)
+function robotMap = createRobotMap(positions, WIDTH, HEIGHT)
+rows = positions(2,:) + 1;
+cols = positions(1,:) + 1;
+
+robotMap = zeros(HEIGHT, WIDTH);
+iRobot = sub2ind([HEIGHT, WIDTH], rows, cols);
+robotMap(iRobot) = 1;
+end
+
+
+function robotMap = createVisualMap(positions, WIDTH, HEIGHT)
 rows = positions(2,:) + 1;
 cols = positions(1,:) + 1;
 nRobots = numel(rows);
@@ -52,6 +95,6 @@ end
 robotMap = char(join(string(robotMap), ""));
 robotMap(robotMap == '0') = '.';
 
-disp(robotMap);
-disp(" ")
+robotMap = string(robotMap);
+robotMap = join(robotMap, newline);
 end
