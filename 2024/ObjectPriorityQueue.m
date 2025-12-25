@@ -1,6 +1,6 @@
-classdef PriorityQueue < handle & matlab.mixin.Scalar
+classdef ObjectPriorityQueue < handle & matlab.mixin.Scalar
     properties
-        initialSize (1,1) double {mustBeGreaterThan(initialSize, 10)} = 20
+        initialSize double {mustBeScalarOrEmpty, mustBeGreaterThan(initialSize, 10)}
 
         % No validators on below properties as they tank speed
         values
@@ -11,14 +11,25 @@ classdef PriorityQueue < handle & matlab.mixin.Scalar
 
 
     methods
-        function self = PriorityQueue(initialSize)
-            if nargin > 0
-                self.initialSize = initialSize;
-            else
-                initialSize = self.initialSize;
+        function self = ObjectPriorityQueue(classObject, initialSize)
+            arguments
+                classObject (1,1) meta.class
+                initialSize (1,1) double = 20
             end
+            objectConstructor = str2func(classObject.Name);
+            object = objectConstructor();
+            % assert(~isa(object, "handle"), "Objects stored in the priority queue must not be handle objects.");
 
-            self.values = cell(initialSize, 1);
+            self.initialSize = initialSize;
+
+            if isa(object, "matlab.mixin.Copyable")
+                tempValues(initialSize) = object.copy();
+                tempValues = reshape(tempValues, [], 1);
+                self.values = tempValues;
+            else
+                self.values = repmat(object, initialSize, 1);
+            end
+            
             self.priorities = Inf(initialSize, 1);
         end
 
@@ -27,7 +38,7 @@ classdef PriorityQueue < handle & matlab.mixin.Scalar
             oldIndex = self.index;
             newIndex = oldIndex + 1;
             self.priorities(newIndex) = priority;
-            self.values{newIndex} = value;
+            self.values(newIndex) = value;
             self.index = newIndex;
             self.size = self.size + 1;
         end
@@ -35,8 +46,8 @@ classdef PriorityQueue < handle & matlab.mixin.Scalar
 
         function pushMultiple(self, values, priorities)
             arguments
-                self PriorityQueue
-                values cell
+                self ObjectPriorityQueue
+                values
                 priorities double
             end
             nValues = numel(values);
@@ -47,21 +58,21 @@ classdef PriorityQueue < handle & matlab.mixin.Scalar
 
             oldIndex = self.index;
             newIndex = oldIndex + nValues;
+            self.values(oldIndex + 1 : newIndex) = reshape(values, [], 1);
             self.priorities(oldIndex + 1 : newIndex) = priorities(:);
-            [self.values{oldIndex + 1 : newIndex}] = values{:};
             self.index = newIndex;
             self.size = self.size + nValues;
 
         end
 
 
-        function [value, priority]= pop(self)
+        function [value, priority] = pop(self)
             if self.size < 1
                 error("Priority queue is empty!");
             end
 
             [priority, iMinPriority] = min(self.priorities);
-            value = self.values{iMinPriority};
+            value = self.values(iMinPriority);
             self.priorities(iMinPriority) = Inf;
             self.size = self.size - 1;
         end
@@ -73,7 +84,7 @@ classdef PriorityQueue < handle & matlab.mixin.Scalar
             end
 
             [priority, iMinPriority] = min(self.priorities);
-            value = self.values{iMinPriority};
+            value = self.values(iMinPriority);
         end
 
 
