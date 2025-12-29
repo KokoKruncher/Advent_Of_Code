@@ -319,7 +319,7 @@ classdef IndexedPriorityQueue < handle & matlab.mixin.Scalar
             childNodeValues = self.getNodeValue(childNodeIndices);
             iSmallestChild = 1;
             for ii = 2:numel(childNodeIndices)
-                if childNodeValues(ii) > childNodeValues(iSmallestChild)
+                if childNodeValues(ii) < childNodeValues(iSmallestChild)
                     iSmallestChild = ii;
                 end
             end
