@@ -104,11 +104,11 @@ mazeWidth = mazeSize(2);
 
 scores = configureDictionary("cell", "double");
 minimumScore = [];
-statesToCheck = PriorityQueue();
+statesToCheck = IndexedPriorityQueue();
 
 startDirectionIndex = makeInRange(startDirectionIndex);
 scores({[startPosition, startDirectionIndex]}) = START_SCORE;
-statesToCheck.push([startPosition, startDirectionIndex], START_SCORE);
+statesToCheck.push({[startPosition, startDirectionIndex]}, START_SCORE);
 iter = 0;
 while statesToCheck.hasElements()
     iter = iter + 1;
@@ -118,19 +118,19 @@ while statesToCheck.hasElements()
     end
 
     [state, score] = statesToCheck.pop();
-    position = state(1:2);
-    directionIndex = state(3);
+    position = state{1}(1:2);
+    directionIndex = state{1}(3);
     
     % if seen.contains({position, directionIndex, score})
     %     continue
     % end
     % seen.add({position, directionIndex, score});
 
-    if iter > 1 && scores.isKey({state}) && score >= scores({state})
+    if iter > 1 && scores.isKey(state) && score >= scores(state)
         continue
     end
 
-    scores({state}) = score;
+    scores(state) = score;
 
     if isequal(position, endPosition)
         minimumScore = score;
@@ -146,7 +146,7 @@ end
 
 fprintf("Number of iterations = %i\n", iter);
 fprintf("Queue size = %i\n", statesToCheck.size);
-fprintf("Array capacity = %i\n", numel(statesToCheck.values));
+fprintf("Array capacity = %i\n", statesToCheck.arraySize);
 
 % Nested functions
     function tf = isInBounds(positions)
@@ -183,7 +183,7 @@ fprintf("Array capacity = %i\n", numel(statesToCheck.values));
         end
 
         % statesToCheck.push({position, rightDirectionIndex}, score + SCORE_TURN);
-        statesToCheck.push([nextStatePosition, nextDirectionIndex], nextStateScore);
+        statesToCheck.pushOrDecrease({[nextStatePosition, nextDirectionIndex]}, nextStateScore);
     end
 end
 
