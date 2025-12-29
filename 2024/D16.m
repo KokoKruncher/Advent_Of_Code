@@ -145,6 +145,8 @@ while statesToCheck.hasElements()
 end
 
 fprintf("Number of iterations = %i\n", iter);
+fprintf("Priority Queue Size = %i\n", statesToCheck.size);
+fprintf("Priority Queue Capacity = %i\n", numel(statesToCheck.priorities));
 
 % Nested functions
     function tf = isInBounds(positions)
