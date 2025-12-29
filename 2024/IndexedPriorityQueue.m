@@ -29,6 +29,8 @@ classdef IndexedPriorityQueue < handle & matlab.mixin.Scalar
 
         % nodeIndexToKeyIndex(nodeIndex) = key index for the given node
         nodeIndexToKeyIndex
+
+        bSkipContainsCheckOnce = false
     end
 
     %% Public interface
@@ -43,7 +45,7 @@ classdef IndexedPriorityQueue < handle & matlab.mixin.Scalar
 
 
         function push(self, key, priority)
-            if self.size > 1 && self.keyToKeyIndexMap.isKey(key)
+            if self.size > 1 && self.contains_(key)
                 error("Key already exists in queue! To update the priority of this key, call update() instead.");
             end
 
@@ -93,7 +95,7 @@ classdef IndexedPriorityQueue < handle & matlab.mixin.Scalar
         function update(self, key, newPriority)
             assert(isscalar(key));
 
-            if ~self.contains(key)
+            if ~self.contains_(key)
                 error("Key to be updated is not in queue!");
             end
 
@@ -110,7 +112,8 @@ classdef IndexedPriorityQueue < handle & matlab.mixin.Scalar
 
 
         function pushOrDecrease(self, key, priority)
-            if ~self.contains(key)
+            if ~self.contains_(key)
+                self.bSkipContainsCheckOnce = true;
                 self.push(key, priority);
                 return
             end
@@ -127,7 +130,7 @@ classdef IndexedPriorityQueue < handle & matlab.mixin.Scalar
 
 
         function pushOrIncrease(self, key, priority)
-            if ~self.contains(key)
+            if ~self.contains_(key)
                 self.push(key, priority);
                 return
             end
@@ -146,7 +149,7 @@ classdef IndexedPriorityQueue < handle & matlab.mixin.Scalar
         function varargout = remove(self, key)
             assert(isscalar(key), "Can only remove 1 key at a time.");
             
-            if ~self.contains(key)
+            if ~self.contains_(key)
                 error("Key to be removed is not in the queue!")
             end
 
@@ -204,6 +207,19 @@ classdef IndexedPriorityQueue < handle & matlab.mixin.Scalar
 
     %% Private implementation
     methods (Access = private)
+        function tf = contains_(self, key)
+            % Internal contains() method, which can be skipped once if the key was already checked by the calling
+            % method, therefore eliminaing duplicate contains() calls when going from
+            % pushOrDecrease()/pushOrIncrease() -> push()
+            if ~self.bSkipContainsCheckOnce
+                tf = self.keyToKeyIndexMap.isKey(key);
+            else
+                tf = false;
+                self.bSkipContainsCheckOnce = false;
+            end
+        end
+
+
         function [key, priority] = removeNode(self, nodeIndex)
             keyIndex = self.nodeIndexToKeyIndex(nodeIndex);
             self.availableKeyIndices(end + 1) = keyIndex;
@@ -281,8 +297,6 @@ classdef IndexedPriorityQueue < handle & matlab.mixin.Scalar
             smallestChildNodeIndex = nan;
             smallestChildNodeValue = nan;
             
-            % [left child, right child]
-            % childNodeIndices = [2 * nodeIndex, 2 * nodeIndex + 1];
             childNodeIndices = [self.leftChild(nodeIndex), self.rightChild(nodeIndex)];
             isChildInBounds = self.isInBounds(childNodeIndices);
             nChildrenInBounds = nnz(isChildInBounds);
@@ -300,6 +314,8 @@ classdef IndexedPriorityQueue < handle & matlab.mixin.Scalar
 
             % Uncomment if changing from binary heap to heap where nodes have >2 children
             % childNodeIndices = childNodeIndices(isChildInBounds);
+
+            % This for-loop avoids overhead of min() function
             childNodeValues = self.getNodeValue(childNodeIndices);
             iSmallestChild = 1;
             for ii = 2:numel(childNodeIndices)
@@ -307,11 +323,6 @@ classdef IndexedPriorityQueue < handle & matlab.mixin.Scalar
                     iSmallestChild = ii;
                 end
             end
-
-            % % Since min() returns the first instance of a minimum value, if the left and right child nodes have the same
-            % % value, this function returns the left child node by default.
-            % [smallestChildNodeValue, iSmallestChild] = min(self.getNodeValue(childNodeIndices));
-            % smallestChildNodeIndex = childNodeIndices(iSmallestChild);
         end
 
 
@@ -344,5 +355,3 @@ classdef IndexedPriorityQueue < handle & matlab.mixin.Scalar
         end
     end
 end
-
-%% Local functions
