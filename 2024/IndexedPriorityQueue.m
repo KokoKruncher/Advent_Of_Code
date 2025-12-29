@@ -182,6 +182,7 @@ classdef IndexedPriorityQueue < handle & matlab.mixin.Scalar
             self.values = Inf(self.initialCapacity, 1);
             self.keyIndexToNodeIndex = nan(self.initialCapacity, 1);
             self.nodeIndexToKeyIndex = nan(self.initialCapacity, 1);
+            self.bSkipContainsCheckOnce = false;
         end
 
 
