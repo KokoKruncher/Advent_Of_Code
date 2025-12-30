@@ -8,69 +8,49 @@ end
 towels = convertStringsToChars(split(inputText(1), ", "));
 designs = convertStringsToChars(inputText(3:end));
 
-%% Part 1
+%% Part 1 & Part 2
 nDesigns = numel(designs);
-isPossible = false(nDesigns, 1);
+nPossibleArrangements = nan(nDesigns, 1);
 for ii = 1:nDesigns
-    % fprintf("%i/%i\n", ii, nDesigns);
-    isPossible(ii) = bfs(designs{ii}, towels);
+    fprintf("%i/%i\n", ii, nDesigns);
+    nPossibleArrangements(ii) = countArrangements(designs{ii}, towels);
 end
+nDesignsPossible = nnz(nPossibleArrangements);
+nTotalPossibleArrangements = sum(nPossibleArrangements);
 
-nDesignsPossible = nnz(isPossible);
 fprintf("Number of possible designs = %i\n", nDesignsPossible);
+fprintf("Number of total possible arrangements = %i\n", nTotalPossibleArrangements);
 
 %% Functions
-function isPossible = bfs(design, towels)
-arguments
-    design (1,:) char
-    towels cell {mustBeText}
+function nArrangementsPossible = countArrangements(design, towels)
+cache = configureDictionary('char', 'double');
+[nArrangementsPossible, ~] = countArrangements_(design, towels, cache);
 end
-isPossible = true;
 
-nLettersDesign = numel(design);
+
+function [nArrangementsPossible, cache] = countArrangements_(design, towels, cache)
+nArrangementsPossible = 0;
+
+if cache.isKey(design)
+    nArrangementsPossible = cache(design);
+    return
+end
+
+if isempty(design)
+    nArrangementsPossible = 1;
+    return
+end
+
 nTowels = numel(towels);
+for ii = 1:nTowels
+    thisTowel = towels{ii};
 
-queue = Queue();
-seen = Set();
-
-% {current towel, design letter index}
-startState = {'', 0};
-queue.append(startState);
-while queue.hasElements()
-    state = queue.pop();
-
-    if seen.contains(state)
+    if ~startsWith(design, thisTowel)
         continue
     end
-    seen.add(state);
-
-    % towel = state{1};
-    designLetterIndex = state{2};
-
-    if designLetterIndex == nLettersDesign
-        return
-    end
-
-    for iTowel = 1:nTowels
-        nextTowel = towels{iTowel};
-        nLettersNextTowel = numel(nextTowel);
-
-        if designLetterIndex + nLettersNextTowel > nLettersDesign
-            continue
-        end
-
-        if ~isValid(nextTowel, designLetterIndex)
-            continue
-        end
-        
-        queue.append({nextTowel, designLetterIndex + nLettersNextTowel});
-    end
+    
+    [next, cache] = countArrangements_(design(numel(thisTowel) + 1 : end), towels, cache);
+    nArrangementsPossible = nArrangementsPossible + next;
 end
-
-isPossible = false;
-
-% Nested functions
-    function tf = isValid(towel, designIndex)
-        tf = ~any(design(designIndex + 1 : designIndex + numel(towel)) ~= towel);
-    end
+cache(design) = nArrangementsPossible;
 end
