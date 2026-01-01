@@ -6,16 +6,33 @@ map = char(map);
 
 %% Part 1
 tic
-[originalTime, pathPositions, timeLeft, skips] = calculateTimeSaved(map, 2);
+[originalTime, pathPositions, timeLeft, skips] = calculateTimeSaved(map, 2); %#ok<ASGLU>
 t = toc;
 
 skips = skips.entries();
 skips = renamevars(skips, "Key", "StartEndPositions");
 skips = renamevars(skips, "Value", "TimeSaved");
 
-tabulate(skips.TimeSaved(skips.TimeSaved >= 0));
+% tabulate(skips.TimeSaved(skips.TimeSaved >= 0));
 
 nSkipsSaving100 = nnz(skips.TimeSaved >= 100);
+fprintf("Part 1:\n")
+fprintf("Function evaluation time: %.3f\n", t);
+fprintf("Number of skips saving at least 100 picoseconds = %i\n\n", nSkipsSaving100);
+
+%% Part 2
+tic
+[originalTime, pathPositions, timeLeft, skips] = calculateTimeSaved(map, 20);
+t = toc;
+
+skips = skips.entries();
+skips = renamevars(skips, "Key", "StartEndPositions");
+skips = renamevars(skips, "Value", "TimeSaved");
+
+% tabulate(skips.TimeSaved(skips.TimeSaved >= 0));
+
+nSkipsSaving100 = nnz(skips.TimeSaved >= 100);
+fprintf("Part 1:\n")
 fprintf("Function evaluation time: %.3f\n", t);
 fprintf("Number of skips saving at least 100 picoseconds = %i\n", nSkipsSaving100);
 
@@ -43,7 +60,7 @@ pathPositions(1,:) = startPosition;
 pathDirectionIndices = nan(originalTime + 1, 1);
 pathDirectionIndices(1) = startDirectionIndex;
 timeLeft = dictionary();
-timeLeft({startPosition}) = originalTime;
+timeLeft(subscriptToLinearIndex(startPosition)) = originalTime;
 currentPosition = startPosition;
 currentDirectionIndex = startDirectionIndex;
 time = 0;
@@ -53,7 +70,7 @@ while true
 
     pathPositions(time + 1, :) = nextPosition;
     pathDirectionIndices(time + 1, :) = nextDirectionIndex;
-    timeLeft({nextPosition}) = originalTime - time;
+    timeLeft(subscriptToLinearIndex(nextPosition)) = originalTime - time;
 
     if nextLetter == END
         break
@@ -64,7 +81,6 @@ while true
 end
 
 %% Skipping
-nSkipsMax = 20;
 timeSaved = dictionary();
 nPositions = height(pathPositions);
 
@@ -99,20 +115,18 @@ nValidSkips = numel(skipDistance);
 %     timeSaved({thisSkip}) = timeLeft({thisStartPosition}) - timeLeft({thisEndPosition}) - skipDistance(ii);
 % end
 
-
+% Fastest method for part 2, more than halves part 2 run time, but ~sixtuples part 1 run time
+skipStartPositions = subscriptToLinearIndex(skipStartPositions);
+skipEndPositions = subscriptToLinearIndex(skipEndPositions);
 skipIds = cell(nValidSkips, 1);
-skipStartPositionsCell = cell(nValidSkips, 1);
-skipEndPositionsCell = cell(nValidSkips, 1);
 for ii = 1:nValidSkips
-    thisStartPosition = skipStartPositions(ii,:);
-    thisEndPosition = skipEndPositions(ii,:);
+    thisStartPosition = skipStartPositions(ii);
+    thisEndPosition = skipEndPositions(ii);
 
     skipIds{ii} = [thisStartPosition; thisEndPosition];
-    skipStartPositionsCell{ii} = thisStartPosition;
-    skipEndPositionsCell{ii} = thisEndPosition;
 end
 
-timeSaved(skipIds) = timeLeft(skipStartPositionsCell) - timeLeft(skipEndPositionsCell) - skipDistance;
+timeSaved(skipIds) = timeLeft(skipStartPositions) - timeLeft(skipEndPositions) - skipDistance;
 
 %% Nested functions
     function [nextPosition, nextLetter, directionIndex] = getNext(position, currentDirectionIndex)
@@ -161,6 +175,14 @@ timeSaved(skipIds) = timeLeft(skipStartPositionsCell) - timeLeft(skipEndPosition
     function letters = getLetters(positions)
         positions = sub2ind(size(map), positions(:,1), positions(:,2));
         letters = map(positions);
+    end
+
+
+    function linearIndices = subscriptToLinearIndex(subscripts)
+        rows = subscripts(:,1);
+        cols = subscripts(:,2);
+
+        linearIndices = (cols - 1) * mapSize(1) + rows;
     end
 end
 
