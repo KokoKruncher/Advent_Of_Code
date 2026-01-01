@@ -67,25 +67,52 @@ end
 nSkipsMax = 20;
 timeSaved = dictionary();
 nPositions = height(pathPositions);
-for ii = 1:nPositions
-    skipStartPosition = pathPositions(ii,:);
-    skipDistance = manhattanDistance(skipStartPosition, pathPositions);
 
-    isValidSkip = skipDistance <= nSkipsMax;
-    skipEndPositions = pathPositions(isValidSkip,:);
-    skipDistance = skipDistance(isValidSkip);
+combinationIndices = table2array(combinations(1:nPositions, 1:nPositions));
+skipStartPositions = pathPositions(combinationIndices(:,1), :);
+skipEndPositions = pathPositions(combinationIndices(:,2), :);
+skipDistance = manhattanDistance(skipStartPositions, skipEndPositions);
 
-    for jj = 1:numel(skipDistance)
-        thisSkipEndPosition = skipEndPositions(jj,:);
+isValidSkip = skipDistance <= nSkipsMax;
+skipStartPositions = skipStartPositions(isValidSkip,:);
+skipEndPositions = skipEndPositions(isValidSkip,:);
+skipDistance = skipDistance(isValidSkip);
 
-        if ~timeLeft.isKey({thisSkipEndPosition})
-            continue
-        end
+nValidSkips = numel(skipDistance);
 
-        timeSaved({[skipStartPosition; thisSkipEndPosition]}) ...
-            = timeLeft({skipStartPosition}) - timeLeft({thisSkipEndPosition}) - skipDistance(jj);
-    end
+% skipIds = nan(2 * nValidSkips, 2);
+% skipIds(1 : 2 : 2 * nValidSkips, :) = skipStartPositions;
+% skipIds(2 : 2 : 2 * nValidSkips, :) = skipEndPositions;
+% skipIds = mat2cell(skipIds, repmat(2, nValidSkips, 1));
+% 
+% skipStartPositions = num2cell(skipStartPositions, 2);
+% skipEndPositions = num2cell(skipEndPositions, 2);
+% 
+% timeSaved(skipIds) = timeLeft(skipStartPositions) - timeLeft(skipEndPositions) - skipDistance;
+
+
+% for ii = 1:nValidSkips
+%     thisStartPosition = skipStartPositions(ii,:);
+%     thisEndPosition = skipEndPositions(ii,:);
+%     thisSkip = [thisStartPosition; thisStartPosition];
+% 
+%     timeSaved({thisSkip}) = timeLeft({thisStartPosition}) - timeLeft({thisEndPosition}) - skipDistance(ii);
+% end
+
+
+skipIds = cell(nValidSkips, 1);
+skipStartPositionsCell = cell(nValidSkips, 1);
+skipEndPositionsCell = cell(nValidSkips, 1);
+for ii = 1:nValidSkips
+    thisStartPosition = skipStartPositions(ii,:);
+    thisEndPosition = skipEndPositions(ii,:);
+
+    skipIds{ii} = [thisStartPosition; thisEndPosition];
+    skipStartPositionsCell{ii} = thisStartPosition;
+    skipEndPositionsCell{ii} = thisEndPosition;
 end
+
+timeSaved(skipIds) = timeLeft(skipStartPositionsCell) - timeLeft(skipEndPositionsCell) - skipDistance;
 
 %% Nested functions
     function [nextPosition, nextLetter, directionIndex] = getNext(position, currentDirectionIndex)
