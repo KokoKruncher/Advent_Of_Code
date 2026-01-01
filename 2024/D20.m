@@ -5,7 +5,9 @@ map = map(map ~= "");
 map = char(map);
 
 %% Part 1
-[originalTime, pathPositions, timeLeft, skips] = calculateTimeSaved(map);
+tic
+[originalTime, pathPositions, timeLeft, skips] = calculateTimeSaved(map, 2);
+t = toc;
 
 skips = skips.entries();
 skips = renamevars(skips, "Key", "StartEndPositions");
@@ -14,10 +16,11 @@ skips = renamevars(skips, "Value", "TimeSaved");
 tabulate(skips.TimeSaved(skips.TimeSaved >= 0));
 
 nSkipsSaving100 = nnz(skips.TimeSaved >= 100);
+fprintf("Function evaluation time: %.3f\n", t);
 fprintf("Number of skips saving at least 100 picoseconds = %i\n", nSkipsSaving100);
 
 %% Functions
-function [originalTime, pathPositions, timeLeft, timeSaved] = calculateTimeSaved(map)
+function [originalTime, pathPositions, timeLeft, timeSaved] = calculateTimeSaved(map, nSkipsMax)
 START = 'S';
 END = 'E';
 PATH = '.';
@@ -61,37 +64,26 @@ while true
 end
 
 %% Skipping
-N_SKIPS = 2;
-
-% Relative to previous skip/step
-% Not worth skipping backwards unless it's at the start
-RELATIVE_SKIP_DIRECTION_INDICES = createCombinationsNTimes([-1, 0, 1], N_SKIPS);
-RELATIVE_SKIP_DIRECTION_INDICES_START = createCombinationsNTimes([-1, 0, 1, 2], N_SKIPS);
+nSkipsMax = 20;
 timeSaved = dictionary();
-for ii = 1:height(pathPositions)
+nPositions = height(pathPositions);
+for ii = 1:nPositions
     skipStartPosition = pathPositions(ii,:);
-    skipStartDirectionIndex = pathDirectionIndices(ii,:);
-    
-    if ii ~= 1
-        skipDirectionIndices = RELATIVE_SKIP_DIRECTION_INDICES;
-    else
-        skipDirectionIndices = RELATIVE_SKIP_DIRECTION_INDICES_START;
-    end
+    skipDistance = manhattanDistance(skipStartPosition, pathPositions);
 
-    skipDirectionIndices = cumsum(skipDirectionIndices, 2); % relative to skipStartDirectionIndex
-    skipDirectionIndices = skipStartDirectionIndex + skipDirectionIndices; % absolute direction index
-    skipDirectionIndices = makeInRange(skipDirectionIndices);
-    
-    nCombinations = height(skipDirectionIndices);
-    for iCombination = 1:nCombinations
-        skipEndPosition = skipStartPosition + sum(DIRECTIONS(skipDirectionIndices(iCombination,:), :), 1);
+    isValidSkip = skipDistance <= nSkipsMax;
+    skipEndPositions = pathPositions(isValidSkip,:);
+    skipDistance = skipDistance(isValidSkip);
 
-        if ~timeLeft.isKey({skipEndPosition})
+    for jj = 1:numel(skipDistance)
+        thisSkipEndPosition = skipEndPositions(jj,:);
+
+        if ~timeLeft.isKey({thisSkipEndPosition})
             continue
         end
 
-        timeSaved({[skipStartPosition; skipEndPosition]}) ...
-            = timeLeft({skipStartPosition}) - timeLeft({skipEndPosition}) - N_SKIPS;
+        timeSaved({[skipStartPosition; thisSkipEndPosition]}) ...
+            = timeLeft({skipStartPosition}) - timeLeft({thisSkipEndPosition}) - skipDistance(jj);
     end
 end
 
@@ -165,6 +157,11 @@ for ii = 1:nCombinations
         end
     end
 end
+end
+
+
+function d = manhattanDistance(position1, position2)
+d =  sum(abs(position1 - position2), 2);
 end
 
 
