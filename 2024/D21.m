@@ -43,10 +43,13 @@ NUMERIC_KEYPAD     = ['789';
 % D D D N
 N_STAGES = 3;
 
-routes = convertCharsToStrings(code);
+routePermutations = {convertCharsToStrings(code)};
 cache = configureDictionary("string", "cell");
+chunkCache = configureDictionary("string", "cell");
 for iStage = 1:N_STAGES
-    routes = START_KEY + routes;
+    for ii = 1:numel(routePermutations)
+        routePermutations{ii} = makeSelfSufficient(routePermutations{ii}, START_KEY);
+    end
 
     if iStage == 1
         keypad = NUMERIC_KEYPAD;
@@ -54,27 +57,51 @@ for iStage = 1:N_STAGES
         keypad = DIRECTIONAL_KEYPAD;
     end
 
-    nRoutes = numel(routes);
-    routesNextStage = cell(nRoutes, 1);
-    for iRoute = 1:nRoutes
-        thisRoute = convertStringsToChars(routes{iRoute});
-        nSteps = numel(thisRoute) - 1;
-        stepRoutes = cell(1, nSteps);
+    nPermutations = numel(routePermutations);
+    permutationsNextStage = {};
+    for iPermutation = 1:nPermutations
+        thisPermutation = routePermutations{iPermutation}; % Strings row vec
+        nChunks = numel(thisPermutation);
+        
+        additionalPermutations = {};
+        for iChunk = 1:nChunks
+            thisChunk = thisPermutation(iChunk);
 
-        for iStep = 1:nSteps
-            startKey = thisRoute(iStep);
-            targetKey = thisRoute(iStep + 1);
-            [stepRoutes{iStep}, cache] = bfs(keypad, startKey, targetKey, cache);
+            if chunkCache.isKey(thisChunk)
+                chunkRoutes = chunkCache{thisChunk};
+            else
+                thisChunkChar = convertStringsToChars(thisChunk);
+                nSteps = numel(thisChunkChar) - 1;
+                chunkRoutes = cell(1, nSteps);
+                for iStep = 1:nSteps
+                    startKey = thisChunkChar(iStep);
+                    targetKey = thisChunkChar(iStep + 1);
+                    [chunkRoutes{iStep}, cache] = bfs(keypad, startKey, targetKey, cache);
+                end
+
+                chunkCache(thisChunk) = {chunkRoutes};
+            end
+            additionalPermutations = [additionalPermutations, chunkRoutes];
         end
-        routesNextStage{iRoute} = join(combinations(stepRoutes{:}).Variables, "");
+
+        additionalPermutations = combinations(additionalPermutations{:}).Variables;
+        additionalPermutations = num2cell(additionalPermutations, 2);
+
+        permutationsNextStage = [permutationsNextStage; additionalPermutations];
     end
 
-    routes = vertcat(routesNextStage{:});
+    routePermutations = permutationsNextStage;
+end
+
+nRoutes = numel(routePermutations);
+routes = strings(nRoutes, 1);
+for ii = 1:nRoutes
+    routes(ii) = join(routePermutations{ii}, "");
 end
 
 routeLengths = strlength(routes);
-minRouteLength = min(routeLengths);
-optimalRoutes = routes(routeLengths == minRouteLength);
+[~, iOptimal] = min(routeLengths);
+optimalRoutes = routes(iOptimal);
 end
 
 
@@ -178,4 +205,14 @@ cache(string([startKey, targetKey])) = {routes};
         cols = positions(:,2);
         ok = rows >= 1 & rows <= targetKeypadHeight & cols >= 1 & cols <= targetKeypadWidth;
     end
+end
+
+
+function chunkCombinations = makeSelfSufficient(chunkCombinations, START_KEY)
+% Makes all the combinations self-sufficient by adding the last step of the previous chunk to the front of the current
+% chunk
+
+chunkCombinations(:,1) = START_KEY + chunkCombinations(:,1);
+allColumnsExceptLast = chunkCombinations(:, 1 : end - 1); 
+chunkCombinations(:, 2:end) = extract(allColumnsExceptLast, strlength(allColumnsExceptLast)) + chunkCombinations(:, 2:end);
 end
