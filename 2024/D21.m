@@ -1,70 +1,101 @@
 clear; clc;
 
-START_KEY          = 'A';
+codes = readlines("D21 Data.txt");
+codes = codes(codes ~= "");
+
+% codes = ["029A";
+%          "980A";
+%          "179A";
+%          "456A";
+%          "379A"];
+
+nCodes = numel(codes);
+optimalRouteLengths = nan(nCodes, 1);
+for ii = 1:nCodes
+    thisCode = codes(ii);
+    optimalRoutes = findOptimalRoutes(thisCode);
+    l = strlength(optimalRoutes);
+    optimalRouteLengths(ii) = l(1);
+end
+
+codeNumerics = str2double(extract(codes, digitsPattern()));
+complexities = codeNumerics .* optimalRouteLengths;
+sumComplexities = sum(complexities);
+
+fprintf("Sum of complexities = %i\n", sumComplexities);
+
+%% Functions
+function optimalRoutes = findOptimalRoutes(code)
+START_KEY          = "A";
 
 DIRECTIONAL_KEYPAD = [' ^A';
-                      '<v>'];
+    '<v>'];
 
 NUMERIC_KEYPAD     = ['789';
-                      '456';
-                      '123';
-                      ' 0A'];
+    '456';
+    '123';
+    ' 0A'];
 
 % D D D N
 N_STAGES = 3;
 
-
-
-
-code = '456A';
-routeCache = configureDictionary("string", "string");
+routes = convertCharsToStrings(code);
+cache = configureDictionary("string", "cell");
 for iStage = 1:N_STAGES
+    routes = START_KEY + routes;
+
     if iStage == 1
         keypad = NUMERIC_KEYPAD;
     else
-        code = route;
         keypad = DIRECTIONAL_KEYPAD;
     end
 
-    nKeys = numel(code);
-    route = cell(1, nKeys);
-    for iKey = 1:nKeys
-        if iKey == 1
-            startKey = START_KEY;
-        else
-            startKey = code(iKey - 1);
-        end
+    nRoutes = numel(routes);
+    routesNextStage = cell(nRoutes, 1);
+    for iRoute = 1:nRoutes
+        thisRoute = convertStringsToChars(routes{iRoute});
+        nSteps = numel(thisRoute) - 1;
+        stepRoutes = cell(1, nSteps);
 
-        targetKey = code(iKey);
-        [route{iKey}, routeCache] = bfs(keypad, startKey, targetKey, routeCache);
+        for iStep = 1:nSteps
+            startKey = thisRoute(iStep);
+            targetKey = thisRoute(iStep + 1);
+            [stepRoutes{iStep}, cache] = bfs(keypad, startKey, targetKey, cache);
+        end
+        routesNextStage{iRoute} = join(combinations(stepRoutes{:}).Variables, "");
     end
-    route = char(join(horzcat(route{:}), ""));
+
+    routes = vertcat(routesNextStage{:});
 end
 
-%% Functions
-function [route, routeCache] = bfs(keypad, startKey, targetKey, routeCache)
+routeLengths = strlength(routes);
+minRouteLength = min(routeLengths);
+optimalRoutes = routes(routeLengths == minRouteLength);
+end
+
+
+function [routes, cache] = bfs(keypad, startKey, targetKey, cache)
 arguments
     keypad (:,:) char
     startKey (1,1) char
     targetKey (1,1) char
-    routeCache dictionary = configureDictionary("string", "string")
+    cache dictionary = configureDictionary("string", "cell")
 end
 
-if routeCache.isKey({startKey, targetKey})
-    route = routeCache(string([startKey, targetKey]));
-    route = enumerateString(route);
+if cache.isKey({startKey, targetKey})
+    routes = cache(string([startKey, targetKey]));
     return
 end
 
 if targetKey == startKey
-    route = "A";
+    routes = {"A"};
     return;
 end
 
 DIRECTIONS = int8([1, 0; ...
-                   0, -1; ...
-                   -1, 0; ...
-                   0, 1]);
+    0, -1; ...
+    -1, 0; ...
+    0, 1]);
 
 assert(any(keypad == targetKey, "all"), "Target key is not found in keypad.")
 
@@ -72,7 +103,7 @@ keyStringMap = dictionary(num2cell(DIRECTIONS, 2), ["v"; "<"; "^"; ">"]);
 targetKeypadWidth = width(keypad);
 targetKeypadHeight = height(keypad);
 
-seen = Set();
+distanceMap = configureDictionary("cell", "double");
 queue = Queue();
 
 startPosition = find(keypad == startKey);
@@ -81,24 +112,32 @@ startPosition = int8(ind2sub_fast(startPosition));
 
 queue.append(startPosition);
 iter = 0;
+routes = string.empty();
 while queue.hasElements()
     iter = iter + 1;
     route = queue.pop();
     position = route(end,:);
-    
-    if seen.contains(position)
+    distance = height(route) - 1;
+
+    % Skip non-optimal paths but allow same noded to appear in multiple optimal paths.
+    if distanceMap.isKey({position}) && distance > distanceMap({position})
         continue
     end
-    seen.add(position);
+    distanceMap({position}) = distance;
 
     key = keypad(position(1), position(2));
-    
+
     if key == ' '
         continue
     end
 
     if key == targetKey
-        break
+        route = keyStringMap(num2cell(diff(route, 1), 2)).';
+        route(end+1) = "A"; %#ok<*AGROW>
+        route = join(route, "");
+
+        routes(end + 1) = route;
+        continue
     end
 
     nextPositions = position + DIRECTIONS;
@@ -109,10 +148,8 @@ while queue.hasElements()
     end
 end
 
-route = keyStringMap(num2cell(diff(route, 1), 2)).';
-route(end+1) = "A";
-
-routeCache(string([startKey, targetKey])) = join(route, "");
+routes = routes(:);
+cache(string([startKey, targetKey])) = {routes};
 
 % Nested functions
     function out = enumerateString(str)
@@ -126,11 +163,11 @@ routeCache(string([startKey, targetKey])) = join(route, "");
         sub = [rows, cols];
     end
 
-    % function index = sub2ind_fast(sub)
-    %     rows = sub(:,1);
-    %     cols = sub(:,2);
-    %     index = (cols - 1) * targetKeypadHeight + rows;
-    % end
+% function index = sub2ind_fast(sub)
+%     rows = sub(:,1);
+%     cols = sub(:,2);
+%     index = (cols - 1) * targetKeypadHeight + rows;
+% end
 
     function ok = isInBounds(positions)
         rows = positions(:,1);
