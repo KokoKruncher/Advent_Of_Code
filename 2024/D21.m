@@ -70,9 +70,6 @@ for iStage = 1:N_STAGES
     end
 
     routes = vertcat(routesNextStage{:});
-    routeLengths = strlength(routes);
-    [~, iOptimal] = min(routeLengths);
-    routes = routes(iOptimal);
 end
 
 routeLengths = strlength(routes);
