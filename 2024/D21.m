@@ -9,8 +9,11 @@ codes = codes(codes ~= "");
 %          "456A";
 %          "379A"];
 
+%% Part 1
+tic
 nCodes = numel(codes);
 optimalRouteLengths = nan(nCodes, 1);
+
 for ii = 1:nCodes
     thisCode = codes(ii);
     optimalRoutes = findOptimalRoutes(thisCode);
@@ -21,6 +24,7 @@ end
 codeNumerics = str2double(extract(codes, digitsPattern()));
 complexities = codeNumerics .* optimalRouteLengths;
 sumComplexities = sum(complexities);
+toc
 
 fprintf("Sum of complexities = %i\n", sumComplexities);
 
@@ -66,6 +70,9 @@ for iStage = 1:N_STAGES
     end
 
     routes = vertcat(routesNextStage{:});
+    routeLengths = strlength(routes);
+    [~, iOptimal] = min(routeLengths);
+    routes = routes(iOptimal);
 end
 
 routeLengths = strlength(routes);
