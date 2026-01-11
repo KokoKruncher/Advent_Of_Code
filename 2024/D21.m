@@ -11,7 +11,7 @@ codes = codes(codes ~= "");
 
 %% Part 1
 
-N_DIRECTIONAL_KEYPAD_ROBOTS = 19;
+N_DIRECTIONAL_KEYPAD_ROBOTS = 2;
 nStages = N_DIRECTIONAL_KEYPAD_ROBOTS + 1;
 
 tic
@@ -26,10 +26,13 @@ for ii = 1:nCodes
     [optimalRoute, cache, bfsCache] = findOptimalRoute(thisCode, 1, nStages, cache, bfsCache);
     l = strlength(optimalRoute);
     optimalRouteLengths(ii) = l(1);
-    optimalRoutes{ii} = optimalRoute;
+    % optimalRoutes{ii} = optimalRoute;
 
-    % fprintf("%s (%i): %s\n", thisCode, l, optimalRoute);
-    % replayRoute(optimalRoute, nStages);
+    % fprintf("%s: %i\n", thisCode, l);   
+
+    % Printing the route takes a long time for high number of robots
+    fprintf("%s (%i): %s\n", thisCode, l, optimalRoute);
+    replayRoute(optimalRoute, nStages);
 end
 codeNumerics = str2double(extract(codes, digitsPattern()));
 complexities = codeNumerics .* optimalRouteLengths;
@@ -182,7 +185,20 @@ while queue.hasElements()
     end
 end
 
+% Minimize number of key changes so that the next robot has to do less work, and can just press 'A' lots of times.
+% For example, instead of
+% <^<^A
+% do,
+% <<^^A
 routes = routes(:);
+nRoutes = numel(routes);
+nKeyChanges = nan(nRoutes, 1);
+for ii = 1:nRoutes
+    nKeyChanges(ii) = countKeyChanges(routes(ii));
+end
+[~, iMinKeyChanges] = min(nKeyChanges);
+routes = routes(iMinKeyChanges);
+
 cache(string([startKey, targetKey])) = {routes};
 
 % Nested functions
@@ -199,10 +215,18 @@ cache(string([startKey, targetKey])) = {routes};
         cols = positions(:,2);
         ok = rows >= 1 & rows <= targetKeypadHeight & cols >= 1 & cols <= targetKeypadWidth;
     end
+
+
+    function N = countKeyChanges(route)
+        route = convertStringsToChars(route);
+        N = nnz(diff(route));
+    end
 end
 
 
 function replayRoute(route, nStages)
+assert(nStages > 0);
+
 % 3 Stages =  N D D H
 DIRECTIONAL_KEYPAD = [' ^A';
                       '<v>'];
@@ -212,7 +236,19 @@ NUMERIC_KEYPAD     = ['789';
                       '123';
                       ' 0A'];
 
-assert(nStages > 0);
+DIRECTIONS =...
+   [1,  0; ...
+    0, -1; ...
+   -1,  0; ...
+    0,  1; ...
+    0,  0];
+
+directionMap = dictionary();
+directionMap("v") = 1;
+directionMap("<") = 2;
+directionMap("^") = 3;
+directionMap(">") = 4;
+directionMap("A") = 5;
 
 output = cell(nStages, 1);
 for ii = 1:nStages
@@ -226,7 +262,7 @@ for ii = 1:nStages
         route = output{ii - 1};
     end
 
-    output{ii} = replayStage(route, keypad);
+    output{ii} = replayStage(route, keypad, DIRECTIONS, directionMap);
 end
 
 fprintf("Replaying:\n");
@@ -237,31 +273,18 @@ fprintf("\n\n");
 end
 
 
-function output = replayStage(stageRoute, keypad)
+function output = replayStage(stageRoute, keypad, DIRECTIONS, directionMap)
 START_KEY = 'A';
 
-DIRECTIONS =...
-   [1,  0; ...
-    0, -1; ...
-   -1,  0; ...
-    0,  1; ...
-    0,  0];
+
 
 keypadHeight = height(keypad);
-keypadWidth = width(keypad);
 startPosition = ind2sub_fast(find(keypad == START_KEY));
 
 stageRouteString = convertCharsToStrings(stageRoute);
 stageRouteString = split(stageRouteString, "");
 stageRouteString = stageRouteString(2 : end - 1);
 stageRouteString = stageRouteString(:);
-
-directionMap = dictionary();
-directionMap("v") = 1;
-directionMap("<") = 2;
-directionMap("^") = 3;
-directionMap(">") = 4;
-directionMap("A") = 5;
 
 directionIndex = directionMap(stageRouteString);
 direction = DIRECTIONS(directionIndex,:);
