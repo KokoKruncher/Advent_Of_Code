@@ -11,11 +11,12 @@ codes = codes(codes ~= "");
 
 %% Part 1
 
-N_DIRECTIONAL_KEYPAD_ROBOTS = 25;
+N_DIRECTIONAL_KEYPAD_ROBOTS = 19;
 nStages = N_DIRECTIONAL_KEYPAD_ROBOTS + 1;
 
 tic
 nCodes = numel(codes);
+optimalRoutes = cell(nCodes, 1);
 optimalRouteLengths = nan(nCodes, 1);
 
 cache = configureDictionary("cell", "string");
@@ -25,9 +26,10 @@ for ii = 1:nCodes
     [optimalRoute, cache, bfsCache] = findOptimalRoute(thisCode, 1, nStages, cache, bfsCache);
     l = strlength(optimalRoute);
     optimalRouteLengths(ii) = l(1);
+    optimalRoutes{ii} = optimalRoute;
 
-    fprintf("%s (%i): %s\n", thisCode, l, optimalRoute);
-    replayRoute(optimalRoute, nStages);
+    % fprintf("%s (%i): %s\n", thisCode, l, optimalRoute);
+    % replayRoute(optimalRoute, nStages);
 end
 codeNumerics = str2double(extract(codes, digitsPattern()));
 complexities = codeNumerics .* optimalRouteLengths;
@@ -46,8 +48,9 @@ if stage > nStages
 end
 
 % For the same code, the optimal route will differ depending on how many stages there are left behind it.
-if cache.isKey({code, stage})
-    optimalRoute = cache({{code, stage}});
+cacheKey = {{code, stage}};
+if cache.isKey(cacheKey)
+    optimalRoute = cache(cacheKey);
     % Dictionary stores char as strings
     optimalRoute = convertStringsToChars(optimalRoute);
     return
@@ -100,7 +103,7 @@ if isempty(optimalRoute)
     return
 end
 
-cache({{code, stage}}) = optimalRoute;
+cache(cacheKey) = optimalRoute;
 end
 
 
@@ -234,7 +237,6 @@ fprintf("\n\n");
 end
 
 
-
 function output = replayStage(stageRoute, keypad)
 START_KEY = 'A';
 
@@ -242,51 +244,31 @@ DIRECTIONS =...
    [1,  0; ...
     0, -1; ...
    -1,  0; ...
-    0, 1];
+    0,  1; ...
+    0,  0];
 
 keypadHeight = height(keypad);
 keypadWidth = width(keypad);
-output = '';
 startPosition = ind2sub_fast(find(keypad == START_KEY));
-currentPosition = startPosition;
-nKeyPresses = numel(stageRoute);
-bPress = false;
-for ii = 1:nKeyPresses
-    thisKey = stageRoute(ii);
-    switch thisKey
-        case 'v'
-            directionIndex = 1;
-        case '<'
-            directionIndex = 2;
-        case '^'
-            directionIndex = 3;
-        case '>'
-            directionIndex = 4;
-        case 'A'
-            bPress = true;
-        otherwise
-            warning("Found invalid key: %s", thisKey)
-            continue
-    end
 
-    if ~bPress
-        thisDirection = DIRECTIONS(directionIndex, :);
-        nextPosition = currentPosition + thisDirection;
+stageRouteString = convertCharsToStrings(stageRoute);
+stageRouteString = split(stageRouteString, "");
+stageRouteString = stageRouteString(2 : end - 1);
+stageRouteString = stageRouteString(:);
 
-        if ~isInBounds(nextPosition)
-            error("Next position not in bounds!");
-        end
+directionMap = dictionary();
+directionMap("v") = 1;
+directionMap("<") = 2;
+directionMap("^") = 3;
+directionMap(">") = 4;
+directionMap("A") = 5;
 
-        currentPosition = nextPosition;
-    end
-
-    currentKey = keypad(currentPosition(1), currentPosition(2));
-
-    if bPress
-        output = [output, currentKey];
-        bPress = false;
-    end
-end
+directionIndex = directionMap(stageRouteString);
+direction = DIRECTIONS(directionIndex,:);
+positions = startPosition + cumsum(direction, 1);
+linearIndices = sub2ind_fast(positions);
+keys = keypad(linearIndices);
+output = keys(stageRoute == 'A');
 
 % Nested functions
     function sub = ind2sub_fast(index)
@@ -297,9 +279,79 @@ end
     end
 
 
-    function ok = isInBounds(positions)
-        rows = positions(:,1);
-        cols = positions(:,2);
-        ok = rows >= 1 & rows <= keypadHeight & cols >= 1 & cols <= keypadWidth;
+    function index = sub2ind_fast(sub)
+        rows = sub(:,1);
+        cols = sub(:,2);
+        index = (cols - 1) * keypadHeight + rows;
     end
 end
+
+
+% function output = replayStage(stageRoute, keypad)
+% START_KEY = 'A';
+% 
+% DIRECTIONS =...
+%    [1,  0; ...
+%     0, -1; ...
+%    -1,  0; ...
+%     0, 1];
+% 
+% keypadHeight = height(keypad);
+% keypadWidth = width(keypad);
+% output = '';
+% startPosition = ind2sub_fast(find(keypad == START_KEY));
+% currentPosition = startPosition;
+% nKeyPresses = numel(stageRoute);
+% bPress = false;
+% for ii = 1:nKeyPresses
+%     thisKey = stageRoute(ii);
+%     switch thisKey
+%         case 'v'
+%             directionIndex = 1;
+%         case '<'
+%             directionIndex = 2;
+%         case '^'
+%             directionIndex = 3;
+%         case '>'
+%             directionIndex = 4;
+%         case 'A'
+%             bPress = true;
+%         otherwise
+%             warning("Found invalid key: %s", thisKey)
+%             continue
+%     end
+% 
+%     if ~bPress
+%         thisDirection = DIRECTIONS(directionIndex, :);
+%         nextPosition = currentPosition + thisDirection;
+% 
+%         if ~isInBounds(nextPosition)
+%             error("Next position not in bounds!");
+%         end
+% 
+%         currentPosition = nextPosition;
+%     end
+% 
+%     currentKey = keypad(currentPosition(1), currentPosition(2));
+% 
+%     if bPress
+%         output = [output, currentKey];
+%         bPress = false;
+%     end
+% end
+% 
+% % Nested functions
+%     function sub = ind2sub_fast(index)
+%         index = index(:);
+%         rows = 1 + mod(index - 1, keypadHeight);
+%         cols = ceil(index / keypadHeight);
+%         sub = [rows, cols];
+%     end
+% 
+% 
+%     function ok = isInBounds(positions)
+%         rows = positions(:,1);
+%         cols = positions(:,2);
+%         ok = rows >= 1 & rows <= keypadHeight & cols >= 1 & cols <= keypadWidth;
+%     end
+% end
