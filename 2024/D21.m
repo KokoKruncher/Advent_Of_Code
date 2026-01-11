@@ -10,17 +10,25 @@ codes = codes(codes ~= "");
 %          "379A"];
 
 %% Part 1
+
+N_DIRECTIONAL_KEYPAD_ROBOTS = 25;
+nStages = N_DIRECTIONAL_KEYPAD_ROBOTS + 1;
+
 tic
 nCodes = numel(codes);
 optimalRouteLengths = nan(nCodes, 1);
 
+cache = configureDictionary("cell", "string");
+bfsCache = configureDictionary("string", "cell");
 for ii = 1:nCodes
-    thisCode = codes(ii);
-    optimalRoutes = findOptimalRoutes(thisCode);
-    l = strlength(optimalRoutes);
+    thisCode = convertStringsToChars(codes(ii));
+    [optimalRoute, cache, bfsCache] = findOptimalRoute(thisCode, 1, nStages, cache, bfsCache);
+    l = strlength(optimalRoute);
     optimalRouteLengths(ii) = l(1);
-end
 
+    fprintf("%s (%i): %s\n", thisCode, l, optimalRoute);
+    replayRoute(optimalRoute, nStages);
+end
 codeNumerics = str2double(extract(codes, digitsPattern()));
 complexities = codeNumerics .* optimalRouteLengths;
 sumComplexities = sum(complexities);
@@ -29,79 +37,70 @@ toc
 fprintf("Sum of complexities = %i\n", sumComplexities);
 
 %% Functions
-function optimalRoutes = findOptimalRoutes(code)
-START_KEY          = "A";
+function [optimalRoute, cache, bfsCache] = findOptimalRoute(code, stage, nStages, cache, bfsCache)
+code = convertStringsToChars(code);
+
+if stage > nStages
+    optimalRoute = code;
+    return
+end
+
+% For the same code, the optimal route will differ depending on how many stages there are left behind it.
+if cache.isKey({code, stage})
+    optimalRoute = cache({{code, stage}});
+    % Dictionary stores char as strings
+    optimalRoute = convertStringsToChars(optimalRoute);
+    return
+end
+
+% Since the directional keyboards have start position at A, and always end at A to make the robot that it's controlling
+% press its keypad, this means that the starting key for every robot is always A whenever we come back to it in our DFS.
+START_KEY =           'A';
 
 DIRECTIONAL_KEYPAD = [' ^A';
-    '<v>'];
+                      '<v>'];
 
 NUMERIC_KEYPAD     = ['789';
-    '456';
-    '123';
-    ' 0A'];
+                      '456';
+                      '123';
+                      ' 0A'];
 
-% D D D N
-N_STAGES = 3;
+if stage == 1
+    keypad = NUMERIC_KEYPAD;
+else
+    keypad = DIRECTIONAL_KEYPAD;
+end
 
-routePermutations = {convertCharsToStrings(code)};
-cache = configureDictionary("string", "cell");
-chunkCache = configureDictionary("string", "cell");
-for iStage = 1:N_STAGES
-    for ii = 1:numel(routePermutations)
-        routePermutations{ii} = makeSelfSufficient(routePermutations{ii}, START_KEY);
-    end
+code_ = [START_KEY, code];
+nStepsBetweenKeys = numel(code_) - 1;
 
-    if iStage == 1
-        keypad = NUMERIC_KEYPAD;
-    else
-        keypad = DIRECTIONAL_KEYPAD;
-    end
+optimalRoute = '';
+for ii = 1:nStepsBetweenKeys
+    [codesNextStage, bfsCache] = bfs(keypad, code_(ii), code_(ii + 1), bfsCache);
+    nCodesNextStage = numel(codesNextStage);
+    
+    nextRoute = '';
+    minRouteLengthThisStep = Inf;
+    for jj = 1:nCodesNextStage
+        [potentialRoute, cache, bfsCache] = findOptimalRoute(codesNextStage(jj), stage + 1, nStages, cache, bfsCache);
 
-    nPermutations = numel(routePermutations);
-    permutationsNextStage = {};
-    for iPermutation = 1:nPermutations
-        thisPermutation = routePermutations{iPermutation}; % Strings row vec
-        nChunks = numel(thisPermutation);
-        
-        additionalPermutations = {};
-        for iChunk = 1:nChunks
-            thisChunk = thisPermutation(iChunk);
-
-            if chunkCache.isKey(thisChunk)
-                chunkRoutes = chunkCache{thisChunk};
-            else
-                thisChunkChar = convertStringsToChars(thisChunk);
-                nSteps = numel(thisChunkChar) - 1;
-                chunkRoutes = cell(1, nSteps);
-                for iStep = 1:nSteps
-                    startKey = thisChunkChar(iStep);
-                    targetKey = thisChunkChar(iStep + 1);
-                    [chunkRoutes{iStep}, cache] = bfs(keypad, startKey, targetKey, cache);
-                end
-
-                chunkCache(thisChunk) = {chunkRoutes};
-            end
-            additionalPermutations = [additionalPermutations, chunkRoutes];
+        routeLength = numel(potentialRoute);
+        if routeLength >= minRouteLengthThisStep
+            continue
         end
 
-        additionalPermutations = combinations(additionalPermutations{:}).Variables;
-        additionalPermutations = num2cell(additionalPermutations, 2);
-
-        permutationsNextStage = [permutationsNextStage; additionalPermutations];
+        nextRoute = potentialRoute;
+        minRouteLengthThisStep = routeLength;
     end
 
-    routePermutations = permutationsNextStage;
+    optimalRoute = [optimalRoute, nextRoute];
 end
 
-nRoutes = numel(routePermutations);
-routes = strings(nRoutes, 1);
-for ii = 1:nRoutes
-    routes(ii) = join(routePermutations{ii}, "");
+if isempty(optimalRoute)
+    return
 end
 
-routeLengths = strlength(routes);
-[~, iOptimal] = min(routeLengths);
-optimalRoutes = routes(iOptimal);
+cache({{code, stage}}) = optimalRoute;
 end
 
 
@@ -113,19 +112,20 @@ arguments
     cache dictionary = configureDictionary("string", "cell")
 end
 
-if cache.isKey({startKey, targetKey})
-    routes = cache(string([startKey, targetKey]));
+if cache.isKey(string([startKey, targetKey]))
+    routes = cache{string([startKey, targetKey])};
     return
 end
 
 if targetKey == startKey
-    routes = {"A"};
+    routes = "A";
     return;
 end
 
-DIRECTIONS = int8([1, 0; ...
+DIRECTIONS = int8(...
+   [1,  0; ...
     0, -1; ...
-    -1, 0; ...
+   -1,  0; ...
     0, 1]);
 
 assert(any(keypad == targetKey, "all"), "Target key is not found in keypad.")
@@ -183,10 +183,6 @@ routes = routes(:);
 cache(string([startKey, targetKey])) = {routes};
 
 % Nested functions
-    function out = enumerateString(str)
-        out = split(str, "");
-        out = out(2 : end - 1);
-    end
     function sub = ind2sub_fast(index)
         index = index(:);
         rows = 1 + mod(index - 1, targetKeypadHeight);
@@ -194,11 +190,6 @@ cache(string([startKey, targetKey])) = {routes};
         sub = [rows, cols];
     end
 
-% function index = sub2ind_fast(sub)
-%     rows = sub(:,1);
-%     cols = sub(:,2);
-%     index = (cols - 1) * targetKeypadHeight + rows;
-% end
 
     function ok = isInBounds(positions)
         rows = positions(:,1);
@@ -208,11 +199,107 @@ cache(string([startKey, targetKey])) = {routes};
 end
 
 
-function chunkCombinations = makeSelfSufficient(chunkCombinations, START_KEY)
-% Makes all the combinations self-sufficient by adding the last step of the previous chunk to the front of the current
-% chunk
+function replayRoute(route, nStages)
+% 3 Stages =  N D D H
+DIRECTIONAL_KEYPAD = [' ^A';
+                      '<v>'];
 
-chunkCombinations(:,1) = START_KEY + chunkCombinations(:,1);
-allColumnsExceptLast = chunkCombinations(:, 1 : end - 1); 
-chunkCombinations(:, 2:end) = extract(allColumnsExceptLast, strlength(allColumnsExceptLast)) + chunkCombinations(:, 2:end);
+NUMERIC_KEYPAD     = ['789';
+                      '456';
+                      '123';
+                      ' 0A'];
+
+assert(nStages > 0);
+
+output = cell(nStages, 1);
+for ii = 1:nStages
+    if ii == nStages
+        keypad = NUMERIC_KEYPAD;
+    else
+        keypad = DIRECTIONAL_KEYPAD;
+    end
+
+    if ii > 1
+        route = output{ii - 1};
+    end
+
+    output{ii} = replayStage(route, keypad);
+end
+
+fprintf("Replaying:\n");
+for ii = 1:nStages
+    fprintf("Stage %i: %s\n", ii, output{ii});
+end
+fprintf("\n\n");
+end
+
+
+
+function output = replayStage(stageRoute, keypad)
+START_KEY = 'A';
+
+DIRECTIONS =...
+   [1,  0; ...
+    0, -1; ...
+   -1,  0; ...
+    0, 1];
+
+keypadHeight = height(keypad);
+keypadWidth = width(keypad);
+output = '';
+startPosition = ind2sub_fast(find(keypad == START_KEY));
+currentPosition = startPosition;
+nKeyPresses = numel(stageRoute);
+bPress = false;
+for ii = 1:nKeyPresses
+    thisKey = stageRoute(ii);
+    switch thisKey
+        case 'v'
+            directionIndex = 1;
+        case '<'
+            directionIndex = 2;
+        case '^'
+            directionIndex = 3;
+        case '>'
+            directionIndex = 4;
+        case 'A'
+            bPress = true;
+        otherwise
+            warning("Found invalid key: %s", thisKey)
+            continue
+    end
+
+    if ~bPress
+        thisDirection = DIRECTIONS(directionIndex, :);
+        nextPosition = currentPosition + thisDirection;
+
+        if ~isInBounds(nextPosition)
+            error("Next position not in bounds!");
+        end
+
+        currentPosition = nextPosition;
+    end
+
+    currentKey = keypad(currentPosition(1), currentPosition(2));
+
+    if bPress
+        output = [output, currentKey];
+        bPress = false;
+    end
+end
+
+% Nested functions
+    function sub = ind2sub_fast(index)
+        index = index(:);
+        rows = 1 + mod(index - 1, keypadHeight);
+        cols = ceil(index / keypadHeight);
+        sub = [rows, cols];
+    end
+
+
+    function ok = isInBounds(positions)
+        rows = positions(:,1);
+        cols = positions(:,2);
+        ok = rows >= 1 & rows <= keypadHeight & cols >= 1 & cols <= keypadWidth;
+    end
 end
