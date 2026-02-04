@@ -104,11 +104,11 @@ mazeWidth = mazeSize(2);
 
 scores = configureDictionary("cell", "double");
 minimumScore = [];
-statesToCheck = PriorityQueue();
+statesToCheck = IndexedPriorityQueue();
 
 startDirectionIndex = makeInRange(startDirectionIndex);
 scores({[startPosition, startDirectionIndex]}) = START_SCORE;
-statesToCheck.push([startPosition, startDirectionIndex], START_SCORE);
+statesToCheck.push({[startPosition, startDirectionIndex]}, START_SCORE);
 iter = 0;
 while statesToCheck.hasElements()
     iter = iter + 1;
@@ -118,19 +118,19 @@ while statesToCheck.hasElements()
     end
 
     [state, score] = statesToCheck.pop();
-    position = state(1:2);
-    directionIndex = state(3);
+    position = state{1}(1:2);
+    directionIndex = state{1}(3);
     
     % if seen.contains({position, directionIndex, score})
     %     continue
     % end
     % seen.add({position, directionIndex, score});
 
-    if iter > 1 && scores.isKey({state}) && score >= scores({state})
+    if iter > 1 && scores.isKey(state) && score >= scores(state)
         continue
     end
 
-    scores({state}) = score;
+    scores(state) = score;
 
     if isequal(position, endPosition)
         minimumScore = score;
@@ -145,8 +145,8 @@ while statesToCheck.hasElements()
 end
 
 fprintf("Number of iterations = %i\n", iter);
-fprintf("Priority Queue Size = %i\n", statesToCheck.size);
-fprintf("Priority Queue Capacity = %i\n", numel(statesToCheck.priorities));
+fprintf("Queue size = %i\n", statesToCheck.size);
+fprintf("Array capacity = %i\n", statesToCheck.arraySize);
 
 % Nested functions
     function tf = isInBounds(positions)
@@ -155,7 +155,10 @@ fprintf("Priority Queue Capacity = %i\n", numel(statesToCheck.priorities));
 
 
     function tf = isWalkable(positions)
-        tf = maze(sub2ind(mazeSize, positions(:,1), positions(:,2))) ~= '#';
+        rows = positions(:,1);
+        cols = positions(:,2);
+        linearIndices = (cols - 1) * mazeHeight + rows;
+        tf = maze(linearIndices) ~= '#';
     end
 
 
@@ -183,56 +186,10 @@ fprintf("Priority Queue Capacity = %i\n", numel(statesToCheck.priorities));
         end
 
         % statesToCheck.push({position, rightDirectionIndex}, score + SCORE_TURN);
-        statesToCheck.push([nextStatePosition, nextDirectionIndex], nextStateScore);
+        statesToCheck.pushOrDecrease({[nextStatePosition, nextDirectionIndex]}, nextStateScore);
     end
 end
 
-
-function positionsOnPaths = findPositionsPaths_DAG(startPosition, endPosition, edges)
-positionsOnPaths = {};
-seen = configureDictionary("cell", "logical");
-onPath = configureDictionary("cell", "logical");
-dfs(startPosition, endPosition, edges, [], seen, onPath);
-
-positionsOnPaths = vertcat(positionsOnPaths{:});
-positionsOnPaths = unique(positionsOnPaths, "rows");
-
-% Nested functions
-    function [seen, onPath] = dfs(sourceNode, endNode, edges, currentPath, seen, onPath)
-        if seen.isKey({sourceNode})
-            if onPath.isKey({sourceNode})
-                positionsOnPaths{end+1} = currentPath;
-            end
-
-            return
-        end
-
-        seen({sourceNode}) = true;
-        currentPath(end+1,:) = sourceNode;
-
-        if isequal(sourceNode, endNode)
-            positionsOnPaths{end+1} = currentPath;
-
-            nPositionsInCurrentPath = height(currentPath);
-            currentPath = num2cell(currentPath, 2);
-            for ii = 1:nPositionsInCurrentPath
-                onPath(currentPath(ii)) = true;
-            end
-
-            return
-        end
-
-        neighbours = edges{{sourceNode}};
-        if isempty(neighbours)
-            return
-        end
-
-        nNeighbours = height(neighbours);
-        for ii = 1:nNeighbours
-            [seen, onPath] = dfs(neighbours(ii,:), endNode, edges, currentPath, seen, onPath);
-        end
-    end
-end
 
 
 function visualisePath(maze, path)
