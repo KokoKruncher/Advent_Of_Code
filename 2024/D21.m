@@ -10,6 +10,7 @@ codes = codes(codes ~= "");
 %          "379A"];
 
 %% Part 1
+fprintf("Part 1:\n");
 
 N_DIRECTIONAL_KEYPAD_ROBOTS = 2;
 nStages = N_DIRECTIONAL_KEYPAD_ROBOTS + 1;
@@ -19,20 +20,50 @@ nCodes = numel(codes);
 optimalRoutes = cell(nCodes, 1);
 optimalRouteLengths = nan(nCodes, 1);
 
-cache = configureDictionary("cell", "string");
+routeCache = configureDictionary("cell", "string");
 bfsCache = configureDictionary("string", "cell");
 for ii = 1:nCodes
     thisCode = convertStringsToChars(codes(ii));
-    [optimalRoute, cache, bfsCache] = findOptimalRoute(thisCode, 1, nStages, cache, bfsCache);
+
+    [optimalRoute, routeCache, bfsCache] = findOptimalRoute(thisCode, 1, nStages, routeCache, bfsCache);
     l = strlength(optimalRoute);
     optimalRouteLengths(ii) = l(1);
-    % optimalRoutes{ii} = optimalRoute;
+    optimalRoutes{ii} = optimalRoute;
 
-    % fprintf("%s: %i\n", thisCode, l);   
+    % fprintf("%s: %i\n", thisCode, l);
 
     % Printing the route takes a long time for high number of robots
     fprintf("%s (%i): %s\n", thisCode, l, optimalRoute);
     replayRoute(optimalRoute, nStages);
+end
+codeNumerics = str2double(extract(codes, digitsPattern()));
+complexities = codeNumerics .* optimalRouteLengths;
+sumComplexities = sum(complexities);
+toc
+
+fprintf("Sum of complexities = %i\n", sumComplexities);
+
+%% Part 2
+fprintf("\nPart 2:\n");
+
+N_DIRECTIONAL_KEYPAD_ROBOTS = 25;
+nStages = N_DIRECTIONAL_KEYPAD_ROBOTS + 1;
+
+tic
+nCodes = numel(codes);
+optimalRoutes = cell(nCodes, 1);
+optimalRouteLengths = nan(nCodes, 1);
+
+routeLengthCache = configureDictionary("cell", "double");
+bfsCache = configureDictionary("string", "cell");
+for ii = 1:nCodes
+    thisCode = convertStringsToChars(codes(ii));
+
+    % Not enough memory and computational power to ever calculate the actual route, so just calculate the route length.
+    [optimalRouteLengths(ii), routeLengthCache, bfsCache] ...
+        = findOptimalRouteLength(thisCode, 1, nStages, routeLengthCache, bfsCache);
+
+    fprintf("%s: %i\n", thisCode, optimalRouteLengths(ii));  
 end
 codeNumerics = str2double(extract(codes, digitsPattern()));
 complexities = codeNumerics .* optimalRouteLengths;
@@ -86,17 +117,17 @@ for ii = 1:nStepsBetweenKeys
     nCodesNextStage = numel(codesNextStage);
     
     nextRoute = '';
-    minRouteLengthThisStep = Inf;
+    minRouteLengthThisStage = Inf;
     for jj = 1:nCodesNextStage
         [potentialRoute, cache, bfsCache] = findOptimalRoute(codesNextStage(jj), stage + 1, nStages, cache, bfsCache);
 
         routeLength = numel(potentialRoute);
-        if routeLength >= minRouteLengthThisStep
+        if routeLength >= minRouteLengthThisStage
             continue
         end
 
         nextRoute = potentialRoute;
-        minRouteLengthThisStep = routeLength;
+        minRouteLengthThisStage = routeLength;
     end
 
     optimalRoute = [optimalRoute, nextRoute];
@@ -107,6 +138,66 @@ if isempty(optimalRoute)
 end
 
 cache(cacheKey) = optimalRoute;
+end
+
+
+function [optimalRouteLength, cache, bfsCache] = findOptimalRouteLength(code, stage, nStages, cache, bfsCache)
+code = convertStringsToChars(code);
+
+if stage > nStages
+    optimalRouteLength = strlength(code);
+    return
+end
+
+cacheKey = {{code, stage}};
+if cache.isKey(cacheKey)
+    optimalRouteLength = cache(cacheKey);
+    % Dictionary stores char as strings
+    optimalRouteLength = convertStringsToChars(optimalRouteLength);
+    return
+end
+
+% Since the directional keyboards have start position at A, and always end at A to make the robot that it's controlling
+% press its keypad, this means that the starting key for every robot is always A whenever we come back to it in our DFS.
+START_KEY =           'A';
+
+DIRECTIONAL_KEYPAD = [' ^A';
+                      '<v>'];
+
+NUMERIC_KEYPAD     = ['789';
+                      '456';
+                      '123';
+                      ' 0A'];
+
+if stage == 1
+    keypad = NUMERIC_KEYPAD;
+else
+    keypad = DIRECTIONAL_KEYPAD;
+end
+
+code = [START_KEY, code];
+nStepsBetweenKeys = numel(code) - 1;
+
+optimalRouteLength = 0;
+for ii = 1:nStepsBetweenKeys
+    [codesNextStage, bfsCache] = bfs(keypad, code(ii), code(ii + 1), bfsCache);
+    nCodesNextStage = numel(codesNextStage);
+
+    minRouteLength = Inf;
+    for jj = 1:nCodesNextStage
+        [potentialRouteLength, cache, bfsCache] ...
+            = findOptimalRouteLength(codesNextStage(jj), stage + 1, nStages, cache, bfsCache);
+
+        if potentialRouteLength >= minRouteLength
+            continue
+        end
+
+        minRouteLength = potentialRouteLength;
+    end
+
+    optimalRouteLength = optimalRouteLength + minRouteLength;
+end
+cache(cacheKey) = optimalRouteLength;
 end
 
 
@@ -196,8 +287,8 @@ nKeyChanges = nan(nRoutes, 1);
 for ii = 1:nRoutes
     nKeyChanges(ii) = countKeyChanges(routes(ii));
 end
-[~, iMinKeyChanges] = min(nKeyChanges);
-routes = routes(iMinKeyChanges);
+minKeyChanges = min(nKeyChanges);
+routes = routes(nKeyChanges == minKeyChanges);
 
 cache(string([startKey, targetKey])) = {routes};
 
@@ -276,8 +367,6 @@ end
 function output = replayStage(stageRoute, keypad, DIRECTIONS, directionMap)
 START_KEY = 'A';
 
-
-
 keypadHeight = height(keypad);
 startPosition = ind2sub_fast(find(keypad == START_KEY));
 
@@ -308,73 +397,3 @@ output = keys(stageRoute == 'A');
         index = (cols - 1) * keypadHeight + rows;
     end
 end
-
-
-% function output = replayStage(stageRoute, keypad)
-% START_KEY = 'A';
-% 
-% DIRECTIONS =...
-%    [1,  0; ...
-%     0, -1; ...
-%    -1,  0; ...
-%     0, 1];
-% 
-% keypadHeight = height(keypad);
-% keypadWidth = width(keypad);
-% output = '';
-% startPosition = ind2sub_fast(find(keypad == START_KEY));
-% currentPosition = startPosition;
-% nKeyPresses = numel(stageRoute);
-% bPress = false;
-% for ii = 1:nKeyPresses
-%     thisKey = stageRoute(ii);
-%     switch thisKey
-%         case 'v'
-%             directionIndex = 1;
-%         case '<'
-%             directionIndex = 2;
-%         case '^'
-%             directionIndex = 3;
-%         case '>'
-%             directionIndex = 4;
-%         case 'A'
-%             bPress = true;
-%         otherwise
-%             warning("Found invalid key: %s", thisKey)
-%             continue
-%     end
-% 
-%     if ~bPress
-%         thisDirection = DIRECTIONS(directionIndex, :);
-%         nextPosition = currentPosition + thisDirection;
-% 
-%         if ~isInBounds(nextPosition)
-%             error("Next position not in bounds!");
-%         end
-% 
-%         currentPosition = nextPosition;
-%     end
-% 
-%     currentKey = keypad(currentPosition(1), currentPosition(2));
-% 
-%     if bPress
-%         output = [output, currentKey];
-%         bPress = false;
-%     end
-% end
-% 
-% % Nested functions
-%     function sub = ind2sub_fast(index)
-%         index = index(:);
-%         rows = 1 + mod(index - 1, keypadHeight);
-%         cols = ceil(index / keypadHeight);
-%         sub = [rows, cols];
-%     end
-% 
-% 
-%     function ok = isInBounds(positions)
-%         rows = positions(:,1);
-%         cols = positions(:,2);
-%         ok = rows >= 1 & rows <= keypadHeight & cols >= 1 & cols <= keypadWidth;
-%     end
-% end
