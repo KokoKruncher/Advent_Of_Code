@@ -1,5 +1,3 @@
-import itertools
-
 def isAccessible(grid, row, col):
     INCREMENTS = [-1, 0, 1]
     COUNT_LIMIT = 3
