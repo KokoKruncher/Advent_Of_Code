@@ -39,7 +39,6 @@ def main():
                 if (col + 1) < nCols:
                     isBeamCurrent[col + 1] = True
                     nBeamsCurrent[col + 1] += nHits
-                
         isBeamPrev = isBeamCurrent
         nBeamsPrev = nBeamsCurrent
     print("Number of times beam was split = %i" % splitCount)
